@@ -739,6 +739,8 @@ export function getBlockUVs(blockId) {
  * Create the block texture atlas (256x256 canvas with 16x16 tiles)
  * @returns {THREE.CanvasTexture}
  */
+let _blockAtlasCanvas = null;
+
 export function createTextureAtlas() {
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_SIZE;
@@ -754,6 +756,8 @@ export function createTextureAtlas() {
     const ty = Math.floor(id / TILE_COUNT);
     drawTexture(ctx, tx, ty, id);
   }
+
+  _blockAtlasCanvas = canvas;
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
@@ -1355,5 +1359,259 @@ export function createItemTextureAtlas() {
   texture.minFilter = THREE.NearestFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
 
+  // Store canvas for icon extraction
+  _itemAtlasCanvas = canvas;
+
   return texture;
+}
+
+// ─── Item Icon System ──────────────────────────────────────────────────
+let _itemAtlasCanvas = null;
+const _iconCache = new Map();
+
+// Helper: convert atlas tile index → [col, row] for 16×16 grid
+function _tileToColRow(tile) {
+  return [tile % TILE_COUNT, Math.floor(tile / TILE_COUNT)];
+}
+
+/**
+ * Map item ID → atlas tile index in the item texture atlas.
+ * Tile indices are laid out left-to-right, top-to-bottom in a 16×16 grid
+ * of 16×16-pixel tiles on the 256×256 item atlas canvas.
+ */
+const ITEM_TILE_MAP = {
+  // === Tools ===
+  // Wood tier
+  100: 0,   // Wood Sword → sword_wood
+  101: 5,   // Wood Pickaxe → pickaxe_wood
+  102: 10,  // Wood Axe → axe_wood
+  103: 15,  // Wood Shovel → shovel_wood
+  // Stone tier
+  104: 1,   // Stone Sword → sword_stone
+  105: 6,   // Stone Pickaxe → pickaxe_stone
+  106: 11,  // Stone Axe → axe_stone
+  107: 16,  // Stone Shovel → shovel_stone
+  // Iron tier
+  108: 2,   // Iron Sword → sword_iron
+  109: 7,   // Iron Pickaxe → pickaxe_iron
+  110: 12,  // Iron Axe → axe_iron
+  111: 17,  // Iron Shovel → shovel_iron
+  // Gold tier
+  112: 3,   // Gold Sword → sword_gold
+  113: 8,   // Gold Pickaxe → pickaxe_gold
+  114: 13,  // Gold Axe → axe_gold
+  115: 18,  // Gold Shovel → shovel_gold
+  // Diamond tier
+  116: 4,   // Diamond Sword → sword_diamond
+  117: 9,   // Diamond Pickaxe → pickaxe_diamond
+  118: 14,  // Diamond Axe → axe_diamond
+  119: 19,  // Diamond Shovel → shovel_diamond
+  // Ranged / Special
+  120: 20,  // Bow
+  121: 22,  // Shield
+  // Crystal tier (reuse diamond visuals)
+  122: 4,   // Crystal Sword → sword_diamond
+  123: 9,   // Crystal Pickaxe → pickaxe_diamond
+  124: 14,  // Crystal Axe → axe_diamond
+  125: 19,  // Crystal Shovel → shovel_diamond
+  126: 21,  // Arrow
+
+  // === Armor ===
+  // Leather (use iron armor visuals)
+  127: 24,  // Leather Helmet → helmet_iron
+  128: 25,  // Leather Chestplate → chestplate_iron
+  129: 26,  // Leather Leggings → leggings_iron
+  130: 27,  // Leather Boots → boots_iron
+  // Iron
+  131: 24,  // Iron Helmet → helmet_iron
+  132: 25,  // Iron Chestplate → chestplate_iron
+  133: 26,  // Iron Leggings → leggings_iron
+  134: 27,  // Iron Boots → boots_iron
+  // Gold (use iron armor visuals)
+  135: 24,  // Gold Helmet → helmet_iron
+  136: 25,  // Gold Chestplate → chestplate_iron
+  137: 26,  // Gold Leggings → leggings_iron
+  138: 27,  // Gold Boots → boots_iron
+  // Diamond
+  139: 28,  // Diamond Helmet → helmet_diamond
+  140: 29,  // Diamond Chestplate → chestplate_diamond
+  141: 30,  // Diamond Leggings → leggings_diamond
+  142: 31,  // Diamond Boots → boots_diamond
+  // Crystal (use diamond armor visuals)
+  143: 28,  // Crystal Helmet → helmet_diamond
+  144: 29,  // Crystal Chestplate → chestplate_diamond
+  145: 30,  // Crystal Leggings → leggings_diamond
+  146: 31,  // Crystal Boots → boots_diamond
+
+  // === Food ===
+  150: 32,  // Apple
+  151: 33,  // Bread
+  152: 42,  // Steak
+  153: 35,  // Cooked Porkchop
+  154: 43,  // Cooked Chicken
+  155: 44,  // Cooked Mutton
+  156: 38,  // Cooked Fish
+  157: 32,  // Carrot → apple
+  158: 33,  // Baked Potato → bread
+  159: 36,  // Golden Apple
+  160: 36,  // Enchanted Golden Apple
+  161: 39,  // Mushroom Stew
+  162: 40,  // Cake → cookie
+  163: 40,  // Cookie
+
+  // === Materials ===
+  200: 49,  // Coal
+  201: 50,  // Iron Ingot
+  202: 51,  // Gold Ingot
+  203: 52,  // Diamond
+  204: 56,  // Crystal Shard
+  205: 54,  // Redstone
+  206: 48,  // Stick
+  207: 57,  // String
+  208: 61,  // Bone
+  209: 58,  // Feather
+  210: 59,  // Flint
+  211: 49,  // Brick → coal
+  212: 57,  // Paper → string
+  213: 60,  // Book → leather
+  214: 60,  // Leather
+  215: 62,  // Gunpowder
+  216: 63,  // Ender Pearl
+  217: 56,  // Soul Shard → crystal_shard
+  218: 53,  // Nether Star → emerald
+  219: 49,  // Blaze Rod → coal
+  220: 56,  // Ghast Tear → crystal_shard
+  221: 54,  // Glowstone Dust → redstone
+
+  // === Potions ===
+  230: 45,  // Potion of Healing → health potion
+  231: 45,  // Potion of Regeneration → health potion
+  232: 46,  // Potion of Strength → mana potion
+  233: 47,  // Potion of Speed → speed potion
+  234: 46,  // Potion of Fire Resistance → mana potion
+  235: 46,  // Potion of Night Vision → mana potion
+  236: 46,  // Potion of Water Breathing → mana potion
+  237: 46,  // Potion of Invisibility → mana potion
+
+  // === Legendaries (reuse closest visual) ===
+  250: 4,   // Flame Sword → sword_diamond
+  251: 9,   // Crystal Pickaxe → pickaxe_diamond
+  252: 4,   // Void Blade → sword_diamond
+  253: 25,  // Shadow Armor → chestplate_iron
+  254: 27,  // Gravity Boots → boots_iron
+  255: 20,  // Phoenix Bow → bow
+  256: 0,   // Ender Gauntlets → sword_wood (placeholder)
+  257: 22,  // Wyrmscale Shield → shield
+  258: 0,   // Storm Staff → sword_wood (placeholder)
+  259: 0,   // Soul Harvester → sword_wood (placeholder)
+
+  // === Block items (IDs < 100) — stored in item atlas Row 4+ ===
+  1: 64,   2: 65,   3: 66,   4: 67,   5: 68,
+  6: 69,   7: 70,   8: 71,   9: 72,
+  10: 73,  11: 74,  12: 75,  13: 76,
+  14: 77,  15: 78,  16: 79,  17: 80,
+  20: 83,  22: 85,  27: 90,  28: 91,
+  29: 92,  30: 94,  31: 96,
+  33: 98,  35: 100,
+};
+
+// Backward-compatible [col, row] map derived from tile indices
+const ITEM_ATLAS_MAP = Object.fromEntries(
+  Object.entries(ITEM_TILE_MAP).map(([id, tile]) => [id, _tileToColRow(tile)])
+);
+
+/**
+ * Get the atlas tile index for a given item ID.
+ * @param {number} itemId
+ * @returns {number} Tile index, or -1 if not mapped.
+ */
+export function getItemAtlasTile(itemId) {
+  const tile = ITEM_TILE_MAP[itemId];
+  return tile !== undefined ? tile : -1;
+}
+
+/**
+ * Get an item icon as a canvas element cropped from the item atlas.
+ * @param {number} itemId
+ * @param {number} [size=32] - Output canvas width/height in pixels.
+ * @returns {HTMLCanvasElement|null}
+ */
+export function getItemIconCanvas(itemId, size = 32) {
+  const iconCanvas = document.createElement('canvas');
+  iconCanvas.width = size;
+  iconCanvas.height = size;
+  const ctx = iconCanvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  if (itemId < 100 && _blockAtlasCanvas) {
+    const tileIdx = _getBlockSideTile(itemId);
+    if (tileIdx < 0) return null;
+    const col = tileIdx % 16;
+    const row = Math.floor(tileIdx / 16);
+    ctx.drawImage(_blockAtlasCanvas, col * 16, row * 16, 16, 16, 0, 0, size, size);
+  } else if (_itemAtlasCanvas) {
+    const pos = ITEM_ATLAS_MAP[itemId];
+    if (!pos) return null;
+    const [col, row] = pos;
+    ctx.drawImage(_itemAtlasCanvas, col * 16, row * 16, 16, 16, 0, 0, size, size);
+  } else {
+    return null;
+  }
+  return iconCanvas;
+}
+
+/**
+ * Get an item icon as a data URL (32x32 upscaled from 16x16 atlas tile).
+ * Returns null if no atlas or no mapping.
+ * Block items (id < 100) use the block atlas; items >= 100 use the item atlas.
+ */
+export function getItemIcon(itemId) {
+  if (_iconCache.has(itemId)) return _iconCache.get(itemId);
+
+  const iconCanvas = document.createElement('canvas');
+  iconCanvas.width = 32;
+  iconCanvas.height = 32;
+  const ctx = iconCanvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // Block items (< 100): use block atlas
+  if (itemId < 100 && _blockAtlasCanvas) {
+    // Use getBlockTextures to find the side tile index
+    // We need to import this data, but it's simpler to just compute it here
+    // Block textures are at tile positions matching the block atlas layout
+    // From chunk.js: block tile index = same as block ID for simple mapping
+    const tileIdx = _getBlockSideTile(itemId);
+    if (tileIdx < 0) return null;
+    const col = tileIdx % 16;
+    const row = Math.floor(tileIdx / 16);
+    ctx.drawImage(_blockAtlasCanvas, col * 16, row * 16, 16, 16, 0, 0, 32, 32);
+  } else if (_itemAtlasCanvas) {
+    // Item items (>= 100): use item atlas
+    const pos = ITEM_ATLAS_MAP[itemId];
+    if (!pos) return null;
+    const [col, row] = pos;
+    ctx.drawImage(_itemAtlasCanvas, col * 16, row * 16, 16, 16, 0, 0, 32, 32);
+  } else {
+    return null;
+  }
+
+  const url = iconCanvas.toDataURL();
+  _iconCache.set(itemId, url);
+  return url;
+}
+
+// Block ID → side tile index in block atlas (mirrors chunk.js getBlockTextures)
+function _getBlockSideTile(blockId) {
+  const M = {
+    1:2, 2:3, 3:4, 4:5, 5:6, 6:7, 7:8, 8:10, 9:13, 10:11,
+    11:14, 12:12, 13:15, 14:16, 15:17, 16:18, 17:19, 18:20,
+    19:21, 20:22, 21:23, 22:24, 23:25, 24:26, 25:27, 26:28,
+    27:29, 28:30, 29:32, 30:33, 31:35, 32:36, 33:37, 34:38,
+    35:39, 36:40, 37:41, 38:42, 39:43, 40:44, 41:45, 42:46,
+    43:47, 44:48, 45:49, 46:50, 47:51, 48:52, 49:53, 50:54,
+    51:55, 52:56, 53:57, 54:58, 55:59, 56:60, 57:61, 58:62,
+    59:63, 60:64, 61:65, 62:66, 63:67, 64:68, 65:69, 66:70,
+    67:71,
+  };
+  return M[blockId] ?? -1;
 }

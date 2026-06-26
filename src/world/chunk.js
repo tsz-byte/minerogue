@@ -311,6 +311,14 @@ export class Chunk {
     const aoValues = [];
     let vertCount = 0;
 
+    // Transparent pass data (leaves, water, glass, etc.)
+    const tPositions = [];
+    const tNormals = [];
+    const tUvs = [];
+    const tIndices = [];
+    const tAoValues = [];
+    let tVertCount = 0;
+
     // Atlas is 16x16 tiles
     const ATLAS_SIZE = 16;
     const tileU = 1 / ATLAS_SIZE;
@@ -321,9 +329,17 @@ export class Chunk {
         for (let lx = 0; lx < CHUNK_SIZE; lx++) {
           const blockId = this.blocks[this._index(lx, ly, lz)];
           if (blockId === 0) continue;
-          if (isTransparent(blockId)) continue;
 
+          const isBlockTransparent = isTransparent(blockId);
           const texMap = getBlockTextures(blockId);
+
+          // Choose which buffer set to write into
+          const pPos = isBlockTransparent ? tPositions : positions;
+          const pNorm = isBlockTransparent ? tNormals : normals;
+          const pUv = isBlockTransparent ? tUvs : uvs;
+          const pIdx = isBlockTransparent ? tIndices : indices;
+          const pAo = isBlockTransparent ? tAoValues : aoValues;
+          const pVert = isBlockTransparent ? tVertCount : vertCount;
 
           for (let f = 0; f < 6; f++) {
             const face = FACES[f];
@@ -331,9 +347,17 @@ export class Chunk {
             const ny = ly + face.dir[1];
             const nz = lz + face.dir[2];
 
-            // Only emit face if neighbor is transparent
             const neighborId = this.getBlock(nx, ny, nz);
-            if (!isTransparent(neighborId)) continue;
+
+            // For opaque blocks: only show face if neighbor is transparent
+            // For transparent blocks: only show face if neighbor is air OR different block
+            if (!isBlockTransparent) {
+              if (!isTransparent(neighborId)) continue;
+            } else {
+              // Transparent block: show face if neighbor is air or a different block type
+              if (neighborId === blockId) continue; // same type = hide (e.g. leaf-to-leaf)
+              if (!isTransparent(neighborId) && neighborId !== 0) continue; // opaque neighbor = hide face
+            }
 
             // Select tile index: top=0, bottom=1, side=2
             let tileIdx;
@@ -350,97 +374,127 @@ export class Chunk {
             // Diagonal flip for better AO interpolation
             const doFlip = (ao[0] + ao[2]) < (ao[1] + ao[3]);
 
+            const base = pVert + (isBlockTransparent ? tVertCount : vertCount) - (isBlockTransparent ? tVertCount : vertCount);
+
             // Emit 4 vertices
             for (let v = 0; v < 4; v++) {
               const c = face.corners[v];
               const px = this.cx * CHUNK_SIZE + lx + c[0];
               const py = this.cy * CHUNK_SIZE + ly + c[1];
               const pz = this.cz * CHUNK_SIZE + lz + c[2];
-              positions.push(px, py, pz);
-              normals.push(face.normal[0], face.normal[1], face.normal[2]);
+              pPos.push(px, py, pz);
+              pNorm.push(face.normal[0], face.normal[1], face.normal[2]);
 
               // UV within tile, mapped to atlas position
               const cu = (tileCol + c[3]) * tileU;
               const cv = 1 - (tileRow + 1 - c[4]) * tileV;
-              uvs.push(cu, cv);
+              pUv.push(cu, cv);
 
-              aoValues.push(ao[v] / 3.0);
+              pAo.push(ao[v] / 3.0);
             }
 
             // Two triangles per face (quad)
-            const base = vertCount;
+            const vBase = isBlockTransparent ? tVertCount : vertCount;
             if (doFlip) {
-              indices.push(base, base + 1, base + 3);
-              indices.push(base + 1, base + 2, base + 3);
+              pIdx.push(vBase, vBase + 1, vBase + 3);
+              pIdx.push(vBase + 1, vBase + 2, vBase + 3);
             } else {
-              indices.push(base, base + 1, base + 2);
-              indices.push(base, base + 2, base + 3);
+              pIdx.push(vBase, vBase + 1, vBase + 2);
+              pIdx.push(vBase + 2, vBase + 3, vBase);
             }
-            vertCount += 4;
+
+            if (isBlockTransparent) tVertCount += 4; else vertCount += 4;
           }
         }
       }
     }
 
-    // No geometry? Skip mesh creation.
-    if (vertCount === 0) {
-      this.mesh = null;
-      this.dirty = false;
-      return;
+    // Opaque mesh
+    if (vertCount > 0) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.setAttribute('ao', new THREE.Float32BufferAttribute(aoValues, 1));
+      geometry.setIndex(indices);
+
+      const material = new THREE.MeshLambertMaterial({
+        map: textureAtlas,
+      });
+
+      material.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <common>',
+          `#include <common>\nattribute float ao;\nvarying float vAo;`
+        );
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>\nvAo = ao;`
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <common>',
+          `#include <common>\nvarying float vAo;`
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <dithering_fragment>',
+          `gl_FragColor.rgb *= vAo;\n#include <dithering_fragment>`
+        );
+      };
+
+      this.mesh = new THREE.Mesh(geometry, material);
+      this.mesh.matrixAutoUpdate = false;
+      this.mesh.updateMatrix();
+
+      const min = new THREE.Vector3(
+        this.cx * CHUNK_SIZE, this.cy * CHUNK_SIZE, this.cz * CHUNK_SIZE
+      );
+      const max = new THREE.Vector3(
+        this.cx * CHUNK_SIZE + CHUNK_SIZE, this.cy * CHUNK_SIZE + CHUNK_SIZE, this.cz * CHUNK_SIZE + CHUNK_SIZE
+      );
+      geometry.boundingBox = new THREE.Box3(min, max);
+      geometry.boundingSphere = new THREE.Sphere();
+      geometry.boundingBox.getBoundingSphere(geometry.boundingSphere);
+      this.mesh.frustumCulled = true;
+
+      scene.add(this.mesh);
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geometry.setAttribute('ao', new THREE.Float32BufferAttribute(aoValues, 1));
-    geometry.setIndex(indices);
+    // Transparent mesh (leaves, water, glass, etc.)
+    if (tVertCount > 0) {
+      const tGeo = new THREE.BufferGeometry();
+      tGeo.setAttribute('position', new THREE.Float32BufferAttribute(tPositions, 3));
+      tGeo.setAttribute('normal', new THREE.Float32BufferAttribute(tNormals, 3));
+      tGeo.setAttribute('uv', new THREE.Float32BufferAttribute(tUvs, 2));
+      tGeo.setAttribute('ao', new THREE.Float32BufferAttribute(tAoValues, 1));
+      tGeo.setIndex(tIndices);
 
-    // MeshLambertMaterial with AO injection
-    const material = new THREE.MeshLambertMaterial({
-      map: textureAtlas,
-    });
+      const tMat = new THREE.MeshLambertMaterial({
+        map: textureAtlas,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        alphaTest: 0.1,
+      });
 
-    material.onBeforeCompile = (shader) => {
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <common>',
-        `#include <common>\nattribute float ao;\nvarying float vAo;`
+      this.transparentMesh = new THREE.Mesh(tGeo, tMat);
+      this.transparentMesh.matrixAutoUpdate = false;
+      this.transparentMesh.updateMatrix();
+
+      const min = new THREE.Vector3(
+        this.cx * CHUNK_SIZE, this.cy * CHUNK_SIZE, this.cz * CHUNK_SIZE
       );
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>\nvAo = ao;`
+      const max = new THREE.Vector3(
+        this.cx * CHUNK_SIZE + CHUNK_SIZE, this.cy * CHUNK_SIZE + CHUNK_SIZE, this.cz * CHUNK_SIZE + CHUNK_SIZE
       );
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <common>',
-        `#include <common>\nvarying float vAo;`
-      );
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <dithering_fragment>',
-        `gl_FragColor.rgb *= vAo;\n#include <dithering_fragment>`
-      );
-    };
+      tGeo.boundingBox = new THREE.Box3(min, max);
+      tGeo.boundingSphere = new THREE.Sphere();
+      tGeo.boundingBox.getBoundingSphere(tGeo.boundingSphere);
+      this.transparentMesh.frustumCulled = true;
 
-    this.mesh = new THREE.Mesh(geometry, material);
-    this.mesh.matrixAutoUpdate = false;
-    this.mesh.updateMatrix();
+      scene.add(this.transparentMesh);
+    }
 
-    // Bounding box/sphere for frustum culling
-    const min = new THREE.Vector3(
-      this.cx * CHUNK_SIZE,
-      this.cy * CHUNK_SIZE,
-      this.cz * CHUNK_SIZE
-    );
-    const max = new THREE.Vector3(
-      this.cx * CHUNK_SIZE + CHUNK_SIZE,
-      this.cy * CHUNK_SIZE + CHUNK_SIZE,
-      this.cz * CHUNK_SIZE + CHUNK_SIZE
-    );
-    geometry.boundingBox = new THREE.Box3(min, max);
-    geometry.boundingSphere = new THREE.Sphere();
-    geometry.boundingBox.getBoundingSphere(geometry.boundingSphere);
-    this.mesh.frustumCulled = true;
-
-    scene.add(this.mesh);
     this.dirty = false;
   }
 
@@ -453,6 +507,12 @@ export class Chunk {
       if (this.mesh.geometry) this.mesh.geometry.dispose();
       if (this.mesh.material) this.mesh.material.dispose();
       this.mesh = null;
+    }
+    if (this.transparentMesh) {
+      scene.remove(this.transparentMesh);
+      if (this.transparentMesh.geometry) this.transparentMesh.geometry.dispose();
+      if (this.transparentMesh.material) this.transparentMesh.material.dispose();
+      this.transparentMesh = null;
     }
   }
 }

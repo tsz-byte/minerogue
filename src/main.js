@@ -19,6 +19,7 @@ import { ParticleSystem } from './particles.js';
 import { HUD } from './ui/hud.js';
 import { MenuManager } from './ui/menus.js';
 import { Minimap } from './ui/minimap.js';
+import { HandRenderer } from './ui/hand.js';
 import { createTextureAtlas, createItemTextureAtlas } from './textures.js';
 
 // Game states
@@ -61,6 +62,7 @@ class Game {
     this.furnaceSystem = null;
     this.dayNight = null;
     this.dungeon = null;
+    this.hand = null;
 
     // Run stats
     this.runStats = this.resetRunStats();
@@ -80,6 +82,10 @@ class Game {
 
     this.setupMenus();
     this.setupInput();
+
+    // Initialize item texture atlas for icon extraction
+    createItemTextureAtlas();
+
     this.gameLoop(0);
   }
 
@@ -211,6 +217,10 @@ class Game {
     this.furnaceSystem = new FurnaceSystem(this.inventory, this.audio);
     this.player = new Player(this.world, camera, scene, this.audio, this.inventory);
 
+    // Hand renderer (first-person arm + held item)
+    if (this.hand) this.hand.dispose();
+    this.hand = new HandRenderer(camera, scene);
+
     // Apply starting upgrades
     if (this.meta.upgrades.stoneStart) {
       this.player.inventory.setSlot(0, { id: 101, count: 1 }); // Stone pick
@@ -232,6 +242,9 @@ class Game {
 
     // Particles
     this.particles.clear();
+
+    // Sync hand to initial hotbar slot
+    this._syncHandItem();
 
     // Place player at spawn
     const spawnY = generator.getHeight(128, 128) + 2;
@@ -262,6 +275,43 @@ class Game {
     this.dungeon.generate(64, 64);
     this.dungeon.generate(192, 192);
     this.dungeon.generate(64, 192);
+    this.dungeon.generate(192, 64);
+
+    // Place structures throughout the world
+    const rng = this._seededRng(seed + 7777);
+    const structures = [
+      { type: 'village_ruins', count: 4 + Math.floor(rng() * 3) },
+      { type: 'dungeon_tower', count: 3 + Math.floor(rng() * 2) },
+      { type: 'desert_temple', count: 2 + Math.floor(rng() * 2) },
+      { type: 'portal_room', count: 2 },
+    ];
+
+    // Import and use structure generator
+    import('./world/structures.js').then(({ generateStructure }) => {
+      const worldCenter = 128;
+      for (const struct of structures) {
+        for (let i = 0; i < struct.count; i++) {
+          const angle = rng() * Math.PI * 2;
+          const dist = 30 + rng() * 80;
+          const x = Math.floor(worldCenter + Math.cos(angle) * dist);
+          const z = Math.floor(worldCenter + Math.sin(angle) * dist);
+          const y = this.world?.generator?.getHeight(x, z) || 64;
+          try {
+            generateStructure(struct.type, x, y + 1, z, this.world);
+          } catch(e) { /* structure may overlap, that's ok */ }
+        }
+      }
+    });
+  }
+
+  _seededRng(seed) {
+    return function() {
+      seed |= 0;
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
   }
 
   enterHomeWorld() {
@@ -282,6 +332,11 @@ class Game {
     this.inventory = this.inventory || new InventorySystem(this);
     this.player = new Player(this.world, camera, scene, this.audio, this.inventory);
     this.player.position.set(32, 12, 32);
+
+    // Hand renderer for home world
+    if (this.hand) this.hand.dispose();
+    this.hand = new HandRenderer(camera, scene);
+    this._syncHandItem();
 
     this.particles.clear();
     this.menus.hideMainMenu();
@@ -388,6 +443,7 @@ class Game {
     this.menus.updateShards(this.meta.soulShards);
 
     // Clean up
+    if (this.hand) { this.hand.dispose(); this.hand = null; }
     if (this.world) {
       this.world.dispose();
       this.world = null;
@@ -400,7 +456,6 @@ class Game {
     this.state = STATE.PLAYING;
     this.menus.hidePause();
     this.input.requestPointerLock();
-    document.body.style.cursor = 'none';
   }
 
   handleInput(dt) {
@@ -422,13 +477,24 @@ class Game {
       } else if (this.state === STATE.PAUSED) {
         this.unpause();
         return;
-      } else if (this.state === STATE.INVENTORY || this.state === STATE.CRAFTING_TABLE ||
-                 this.state === STATE.FURNACE) {
+      } else if (this.state === STATE.INVENTORY) {
         this.state = STATE.PLAYING;
-        this.menus.hideInventory?.();
-        this.menus.hideCraftingTable?.();
+        this.menus.hideInventory();
         this.input.requestPointerLock();
-        document.body.style.cursor = 'none';
+        return;
+      } else if (this.state === STATE.CRAFTING_TABLE) {
+        this.state = STATE.PLAYING;
+        this.menus.hideCraftingTable();
+        this.input.requestPointerLock();
+        return;
+      } else if (this.state === STATE.FURNACE) {
+        this.state = STATE.PLAYING;
+        this.menus.hideFurnace?.();
+        this.input.requestPointerLock();
+        return;
+      } else if (this.state === STATE.SHOP) {
+        this.menus.hideShop();
+        this.state = STATE.MENU;
         return;
       }
     }
@@ -439,14 +505,13 @@ class Game {
     if (input.isKeyDown('KeyE')) {
       input.keys.delete('KeyE');
       if (this.state === STATE.INVENTORY) {
+        // Close inventory — re-lock pointer
         this.state = STATE.PLAYING;
         this.menus.hideInventory();
         this.input.requestPointerLock();
-        document.body.style.cursor = 'none';
-      } else {
+      } else if (this.state === STATE.PLAYING || this.state === STATE.HOME) {
+        // Open inventory — keep pointer lock, virtual cursor handles interaction
         this.state = STATE.INVENTORY;
-        this.input.exitPointerLock?.();
-        document.body.style.cursor = 'default';
         this.menus.showInventory(this.inventory, this.crafting);
       }
       return;
@@ -456,14 +521,13 @@ class Game {
     if (input.isKeyDown('KeyC')) {
       input.keys.delete('KeyC');
       if (this.state === STATE.CRAFTING_TABLE) {
+        // Close crafting — re-lock pointer
         this.state = STATE.PLAYING;
         this.menus.hideCraftingTable();
         this.input.requestPointerLock();
-        document.body.style.cursor = 'none';
-      } else {
+      } else if (this.state === STATE.PLAYING || this.state === STATE.HOME) {
+        // Open crafting — keep pointer lock, virtual cursor handles interaction
         this.state = STATE.CRAFTING_TABLE;
-        this.input.exitPointerLock?.();
-        document.body.style.cursor = 'default';
         this.menus.showCraftingTable(this.inventory, this.crafting);
       }
       return;
@@ -477,9 +541,10 @@ class Game {
 
     // Hotbar selection (1-9)
     for (let i = 1; i <= 9; i++) {
-      if (input.isKeyDown(String(i))) {
-        input.keys.delete(String(i));
+      if (input.isKeyDown('Digit' + i)) {
+        input.keys.delete('Digit' + i);
         this.player.selectedSlot = i - 1;
+        this._syncHandItem();
       }
     }
 
@@ -487,6 +552,7 @@ class Game {
     const scroll = input.getScrollDelta();
     if (scroll !== 0) {
       this.player.selectedSlot = ((this.player.selectedSlot + Math.sign(scroll)) % 9 + 9) % 9;
+      this._syncHandItem();
     }
 
     // Drop (Q)
@@ -547,7 +613,7 @@ class Game {
 
       // Combat input
       if (this.input.isMouseDown(0) && this.state === STATE.PLAYING) {
-        this.combat?.playerAttack();
+        this._doPlayerAttack();
       }
       if (this.input.isMouseDown(2) && this.state === STATE.PLAYING) {
         this.player.placeBlock();
@@ -567,6 +633,12 @@ class Game {
       this.hud.updateHearts(this.player.health, this.player.maxHealth);
       this.hud.updateHunger(this.player.hunger);
       this.hud.updateHotbar(this.inventory, this.player.selectedSlot);
+
+      // Hand animation update
+      if (this.hand) {
+        this.hand.update(scaledDt);
+        this.hand.updateBob(this.player._bobPhase ?? 0);
+      }
 
       // Block looking at
       const target = this.player.getBlockLookingAt();
@@ -655,6 +727,27 @@ class Game {
 
   applyScreenShake(intensity) {
     this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+  }
+
+  /**
+   * Sync the hand renderer's held item with the player's selected hotbar slot.
+   */
+  _syncHandItem() {
+    if (!this.hand || !this.inventory) return;
+    const slot = this.inventory.getSlot(this.player.selectedSlot);
+    this.hand.setItem(slot ? slot.id : null);
+  }
+
+  /**
+   * Execute a player attack and trigger the hand swing animation.
+   */
+  _doPlayerAttack() {
+    this.combat?.playerAttack();
+    if (this.hand) {
+      const toolData = this.inventory?.getHeldToolData();
+      const toolType = toolData?.type || 'hand';
+      this.hand.swingAttack(toolType);
+    }
   }
 }
 

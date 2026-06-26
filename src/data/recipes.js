@@ -171,12 +171,22 @@ export const FUEL_VALUES = {
 // ============================================================
 
 export function findRecipe(grid) {
-  if (!grid || grid.length !== 9) return null;
+  if (!grid) return null;
+  // Pad 2x2 grid (4 elements) to 3x3 grid (9 elements)
+  let g = grid;
+  if (grid.length === 4) {
+    g = [
+      grid[0], grid[1], null,
+      grid[2], grid[3], null,
+      null, null, null,
+    ];
+  }
+  if (g.length !== 9) return null;
 
   for (const recipe of CRAFTING_RECIPES) {
     if (recipe.shapeless) {
       // Shapeless: just compare multisets of non-null ingredients
-      const gridItems = grid.filter(x => x != null).sort();
+      const gridItems = g.filter(x => x != null).sort();
       const recipeItems = recipe.pattern.flat().filter(x => x != null).sort();
       if (gridItems.length === recipeItems.length &&
           gridItems.every((v, i) => v === recipeItems[i])) {
@@ -193,7 +203,7 @@ export function findRecipe(grid) {
           let match = true;
           for (let r = 0; r < 3 && match; r++) {
             for (let c = 0; c < 3 && match; c++) {
-              const gridItem = grid[r * 3 + c];
+              const gridItem = g[r * 3 + c];
               let patternItem = null;
               if (r >= rowOff && r < rowOff + patternRows &&
                   c >= colOff && c < colOff + patternCols) {

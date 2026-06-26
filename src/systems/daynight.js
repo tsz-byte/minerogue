@@ -116,6 +116,23 @@ export class DayNightCycle {
    * Update the day/night cycle
    */
   update(dt) {
+    if (this.permanentDay) {
+      this.time = 0.25;
+      // Still update lighting for the current time
+      const t = this.time;
+      const skyColor = this._lerpColor(t);
+      this.renderer.setClearColor(skyColor);
+      if (this.scene.fog) this.scene.fog.color.copy(this._lerpFogColor(t));
+      this.ambientLight.intensity = this._lerpValue(t, this.ambientIntensities);
+      this.sunLight.intensity = this._lerpValue(t, this.sunIntensities);
+      this.sunLight.position.set(0, 200, 50);
+      this.sunLight.color.setHex(0xffffff);
+      this.stars.material.opacity = 0;
+      this.moon.visible = false;
+      this.hemiLight.color.copy(skyColor);
+      return;
+    }
+
     // Advance time
     this.time += (dt * this.speed) / this.cycleDuration;
     if (this.time >= 1) this.time -= 1;

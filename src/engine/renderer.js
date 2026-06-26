@@ -33,15 +33,7 @@ export class GameRenderer {
   }
 
   _setupLighting() {
-    // Hemisphere light for ambient
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8888aa, 0.8);
-    hemiLight.position.set(0, 200, 0);
-    this.scene.add(hemiLight);
-
-    // Directional light for sun
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    dirLight.position.set(100, 200, 100);
-    this.scene.add(dirLight);
+    // Lighting is handled entirely by DayNightCycle system
   }
 
   resize() {

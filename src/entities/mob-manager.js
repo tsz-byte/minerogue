@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { MOB_DEFS, getMobDef } from '../data/mobs.js';
 import { ITEMS, getItemByName } from '../data/items.js';
 import { getBlock } from '../data/blocks.js';
+import { createMobTextureAtlas, getMobFaceUV } from '../textures/mob-textures.js';
 
 // Physics (dt-based, matching player physics)
 const MOB_GRAVITY = -20;
@@ -77,6 +78,9 @@ export class MobManager {
     this._time = 0;
     // Set externally by the game loop based on DayNightCycle
     this.isNight = false;
+
+    // Create mob texture atlas
+    this._mobTextureAtlas = createMobTextureAtlas();
   }
 
   // ===== PUBLIC API =====
@@ -438,7 +442,7 @@ export class MobManager {
         const actualDist = mob.position.distanceTo(this.player.position);
 
         if (mob.attackCooldownTimer <= 0 && actualDist <= mob.attackRange) {
-          this.player.takeDamage(mob.damage, mob.type);
+          mob.wantsAttack = true;
           mob.attackCooldownTimer = mob.attackCooldownDef || 1.5;
           mob._animTime = 0; // Reset for attack anim
         }
@@ -609,8 +613,39 @@ export class MobManager {
       mesh = this._createHumanoidMesh(colors, type);
     }
 
+    // Apply mob texture atlas to the body mesh
+    this._applyMobTexture(mesh, type);
+
     mesh.scale.set(scale, scale, scale);
     return mesh;
+  }
+
+  _applyMobTexture(group, type) {
+    if (!this._mobTextureAtlas) return;
+    const parts = group.userData?.parts;
+    if (!parts) return;
+
+    // Apply textured material to the body
+    const body = parts.body;
+    if (body && body.geometry) {
+      const geo = body.geometry;
+      const uvs = geo.attributes.uv;
+      if (uvs) {
+        // BoxGeometry face order: +X(0), -X(1), +Y(2), -Y(3), +Z(4), -Z(5)
+        // Map to atlas faces: right(+X)=3, left(-X)=2, top(+Y)=4, bottom(-Y)=5, front(+Z)=0, back(-Z)=1
+        const faceOrder = [3, 2, 4, 5, 0, 1];
+        for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
+          const uv = getMobFaceUV(type, faceOrder[faceIdx]);
+          const v = faceIdx * 4;
+          uvs.setXY(v, uv.u0, uv.v0);
+          uvs.setXY(v + 1, uv.u1, uv.v0);
+          uvs.setXY(v + 2, uv.u1, uv.v1);
+          uvs.setXY(v + 3, uv.u0, uv.v1);
+        }
+        uvs.needsUpdate = true;
+        body.material = new THREE.MeshLambertMaterial({ map: this._mobTextureAtlas });
+      }
+    }
   }
 
   _createHumanoidMesh(colors, type) {
@@ -851,9 +886,37 @@ function _rand(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function _box(w, h, d, color, x, y, z) {
+function _box(w, h, d, color, x, y, z, mobType, partType, atlasTexture) {
   const geo = new THREE.BoxGeometry(w, h, d);
-  const mat = new THREE.MeshLambertMaterial({ color });
+  let mat;
+
+  if (atlasTexture && mobType && partType === 'body') {
+    // Apply mob texture to body faces
+    // BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z
+    // Map to atlas: front(+Z)=0, back(-Z)=1, left(-X)=2, right(+X)=3, top(+Y)=4, bottom(-Y)=5
+    const faceOrder = [3, 2, 4, 5, 0, 1]; // box face idx → mob face idx
+    const uvs = geo.attributes.uv;
+    const pos = geo.attributes.position;
+    const index = geo.index;
+
+    // For each face (2 triangles = 6 indices), set UVs
+    for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
+      const uv = getMobFaceUV(mobType, faceOrder[faceIdx]);
+      // BoxGeometry has 4 vertices per face, indexed as pairs of triangles
+      const vertStart = faceIdx * 4;
+      // UV layout per face: [0,0], [1,0], [1,1], [0,1] mapped to (u0,v0)-(u1,v1)
+      uvs.setXY(vertStart, uv.u0, uv.v0);
+      uvs.setXY(vertStart + 1, uv.u1, uv.v0);
+      uvs.setXY(vertStart + 2, uv.u1, uv.v1);
+      uvs.setXY(vertStart + 3, uv.u0, uv.v1);
+    }
+    uvs.needsUpdate = true;
+
+    mat = new THREE.MeshLambertMaterial({ map: atlasTexture });
+  } else {
+    mat = new THREE.MeshLambertMaterial({ color });
+  }
+
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(x, y, z);
   return mesh;

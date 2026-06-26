@@ -61,7 +61,6 @@ export class CombatSystem {
       this._redVignetteOpacity = Math.max(0, this._redVignetteOpacity - dt * 2);
       if (this._damageOverlay) this._damageOverlay.style.opacity = this._redVignetteOpacity;
     }
-    this.particles.update(dt);
     this._checkMobAttacks();
     this.updateArrows(dt);
   }

@@ -1,7 +1,14 @@
 // Crafting system - supports 2x2 inventory grid and 3x3 crafting table grid
 import { CRAFTING_RECIPES, findRecipe } from '../../data/recipes.js';
 import { getItem, getItemByName } from '../../data/items.js';
-import { getBlockByName } from '../../data/blocks.js';
+import { getBlock, BLOCK_MAP } from '../../data/blocks.js';
+
+function getBlockByName(name) {
+  for (const b of Object.values(BLOCK_MAP)) {
+    if (b.name === name) return b;
+  }
+  return null;
+}
 
 export class CraftingSystem {
   constructor(inventory) {

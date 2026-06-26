@@ -77,3 +77,7 @@ export const BLOCK_MAP = Object.fromEntries(BLOCKS.map(b => [b.id, b]));
 export function getBlock(id) {
   return BLOCK_MAP[id] || BLOCK_MAP[0];
 }
+
+export function getBlockByName(name) {
+  return BLOCKS.find(b => b.name === name) || null;
+}

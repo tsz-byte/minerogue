@@ -3,6 +3,29 @@
  *
  * All methods operate on the pre-existing DOM elements from index.html.
  */
+import { getItemIcon } from '../textures.js';
+import { getItem } from '../data/items.js';
+
+// Preload generated item textures for UI icons
+const _genTexLoaded = new Map();
+function _loadGenTex(itemId) {
+  if (_genTexLoaded.has(itemId)) return _genTexLoaded.get(itemId);
+  const map = {
+    100:'sword',101:'pickaxe',102:'axe',103:'shovel',104:'sword',105:'pickaxe',106:'axe',107:'shovel',
+    108:'sword',109:'pickaxe',110:'axe',111:'shovel',112:'gold_sword',113:'pickaxe',114:'axe',115:'shovel',
+    116:'sword',117:'pickaxe',118:'axe',119:'shovel',120:'bow',121:'shield',122:'sword',123:'pickaxe',
+    124:'axe',125:'shovel',126:'bow',
+  };
+  let name = map[itemId];
+  if (!name && itemId >= 127 && itemId <= 146) name = 'sword';
+  if (!name && itemId >= 150 && itemId <= 163) name = 'apple';
+  if (!name && itemId >= 200 && itemId <= 221) name = 'pickaxe';
+  if (!name && itemId >= 230 && itemId <= 237) name = 'potion';
+  if (!name) { _genTexLoaded.set(itemId, null); return null; }
+  const url = `/textures/items/${name}.png`;
+  _genTexLoaded.set(itemId, url);
+  return url;
+}
 
 export class HUD {
   constructor() {
@@ -81,7 +104,6 @@ export class HUD {
   updateHotbar(inventory, selectedSlot) {
     if (!this.hotbarEl) return;
 
-    // Accept InventorySystem (with .slots or .getSlot()) or plain array
     const getSlot = (i) => {
       if (inventory?.getSlot) return inventory.getSlot(i);
       const slots = inventory?.slots ?? inventory;
@@ -96,10 +118,23 @@ export class HUD {
       slotEl.className = `hotbar-slot${selected ? ' selected' : ''}`;
 
       if (item) {
-        const icon = document.createElement('span');
-        icon.className = 'slot-name';
-        icon.textContent = item.icon || item.name || item.id || '';
-        slotEl.appendChild(icon);
+        // Prefer generated texture, fall back to atlas icon
+        const genUrl = _loadGenTex(item.id);
+        const atlasUrl = getItemIcon(item.id);
+        const iconUrl = genUrl || atlasUrl;
+        if (iconUrl) {
+          const img = document.createElement('img');
+          img.src = iconUrl;
+          img.style.cssText = 'width:36px;height:36px;image-rendering:pixelated;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);';
+          slotEl.appendChild(img);
+        } else {
+          // Fallback to text name
+          const itemDef = getItem(item.id);
+          const icon = document.createElement('span');
+          icon.className = 'slot-name';
+          icon.textContent = itemDef?.name?.substring(0, 6) || item.id;
+          slotEl.appendChild(icon);
+        }
 
         if (item.count > 1) {
           const cnt = document.createElement('span');
