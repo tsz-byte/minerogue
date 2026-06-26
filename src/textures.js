@@ -1505,6 +1505,19 @@ const ITEM_TILE_MAP = {
   258: 0,   // Storm Staff → sword_wood (placeholder)
   259: 0,   // Soul Harvester → sword_wood (placeholder)
 
+  // === Utility & decor ===
+  300: 23,  // Fishing Rod
+  301: 59,  // Flint and Steel → flint
+  302: 51,  // Clock → gold ingot
+  303: 50,  // Compass → iron ingot
+  304: 57,  // Lead → string
+  305: 57,  // Name Tag → string/paper
+  306: 96,  // Barrel → chest-like block item
+  307: 100, // Stone Bricks → bricks/clay-like block item
+  308: 83,  // Glass Pane → glass-like block item
+  309: 98,  // Painting → bookshelf-ish decor
+  310: 60,  // Item Frame → leather/book icon
+
   // === Block items (IDs < 100) — stored in item atlas Row 4+ ===
   1: 64,   2: 65,   3: 66,   4: 67,   5: 68,
   6: 69,   7: 70,   8: 71,   9: 72,

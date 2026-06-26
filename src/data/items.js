@@ -117,7 +117,7 @@ export const ITEMS = [
 
   // ===== LEGENDARIES (IDs 250-259) =====
   { id: 250, name: 'Flame Sword', type: 'legendary', subtype: 'sword', damage: 12, speed: 1.6, durability: 2500, stackSize: 1, effects: [{ type: 'fire_aspect', duration: 5, power: 2 }], description: 'A legendary blade wreathed in fire. Deals 12 damage and ignites enemies.' },
-  { id: 251, name: 'Crystal Pickaxe', type: 'legendary', subtype: 'pickaxe', damage: 8, speed: 2.5, durability: 3000, mineLevel: 5, stackSize: 1, effects: [{ type: 'efficiency_boost', duration: 0, power: 3 }], description: 'An enhanced crystal pickaxe. Mining level 5 with efficiency boost.' },
+  { id: 251, name: 'Crystal Excavator', type: 'legendary', subtype: 'pickaxe', damage: 8, speed: 2.5, durability: 3000, mineLevel: 5, stackSize: 1, effects: [{ type: 'efficiency_boost', duration: 0, power: 3 }], description: 'An enhanced crystal excavation tool. Mining level 5 with efficiency boost.' },
   { id: 252, name: 'Void Blade', type: 'legendary', subtype: 'sword', damage: 15, speed: 1.4, durability: 2000, stackSize: 1, effects: [{ type: 'void_damage', duration: 0, power: 5 }], description: 'A blade from the void. Deals 15 damage with void damage bonus.' },
   { id: 253, name: 'Shadow Armor', type: 'legendary', subtype: 'set', defense: 20, durability: 1500, stackSize: 1, effects: [{ type: 'stealth', duration: 0, power: 1 }, { type: 'speed', duration: 0, power: 1 }], description: 'Legendary armor of the shadows. Defense: 20 with stealth and speed.' },
   { id: 254, name: 'Gravity Boots', type: 'legendary', subtype: 'boots', defense: 5, durability: 1200, stackSize: 1, effects: [{ type: 'slow_fall', duration: 0, power: 0 }, { type: 'double_jump', duration: 0, power: 1 }], description: 'Defy gravity. Defense: 5 with slow fall and double jump.' },
@@ -156,6 +156,19 @@ export const ITEMS = [
   { id: 297, name: 'Sponge', type: 'material', stackSize: 64, description: 'Absorbs water when placed. Obtained by drying wet sponge.' },
   { id: 298, name: 'Charcoal', type: 'material', stackSize: 64, description: 'Fuel obtained from smelting logs. Burns like coal.' },
   { id: 299, name: 'Lava Bucket', type: 'material', stackSize: 1, description: 'A bucket of lava. Excellent fuel source.' },
+
+  // ===== UTILITY & DECOR (IDs 300-310) =====
+  { id: 300, name: 'Fishing Rod', type: 'tool', material: 'wood', stackSize: 1, description: 'A simple fishing rod for utility crafting chains.' },
+  { id: 301, name: 'Flint and Steel', type: 'tool', material: 'iron', stackSize: 1, description: 'Useful for ignition and utility interactions.' },
+  { id: 302, name: 'Clock', type: 'utility', stackSize: 1, description: 'Keeps track of time underground.' },
+  { id: 303, name: 'Compass', type: 'utility', stackSize: 1, description: 'Helps you keep your bearings.' },
+  { id: 304, name: 'Lead', type: 'utility', stackSize: 16, description: 'A tether for moving creatures and utility interactions.' },
+  { id: 305, name: 'Name Tag', type: 'utility', stackSize: 16, description: 'Used to label prized finds.' },
+  { id: 306, name: 'Barrel', type: 'utility', stackSize: 64, placeBlockId: 31, description: 'A compact storage block.' },
+  { id: 307, name: 'Stone Bricks', type: 'utility', stackSize: 64, placeBlockId: 24, description: 'A refined stone building block.' },
+  { id: 308, name: 'Glass Pane', type: 'utility', stackSize: 64, placeBlockId: 23, description: 'A thin glass building piece.' },
+  { id: 309, name: 'Painting', type: 'utility', stackSize: 16, description: 'Decorative wall art for your base.' },
+  { id: 310, name: 'Item Frame', type: 'utility', stackSize: 16, description: 'Displays a treasured item on the wall.' },
 ];
 
 export const ITEM_MAP = Object.fromEntries(ITEMS.map(i => [i.id, i]));

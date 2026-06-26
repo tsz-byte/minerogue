@@ -212,6 +212,7 @@ export const FUEL_VALUES = {
 const INGREDIENT_GROUPS = {
   'Wood': ['Oak Log', 'Birch Log', 'Spruce Log'],
   'Oak Planks': ['Oak Planks', 'Birch Planks', 'Spruce Planks'],
+  'Slime': ['Slime', 'Slimeball'],
 };
 
 function resolveIngredientGroups(patternItem) {

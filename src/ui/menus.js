@@ -141,10 +141,16 @@ export class MenuManager {
 
     // Handle clicks via virtual cursor
     document.addEventListener('mousedown', (e) => {
-      if (!this._vcActive || e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      this._handleVirtualClick();
+      if (!this._vcActive) return;
+      if (e.button === 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._handleVirtualCursorClick(false);
+      } else if (e.button === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._handleVirtualCursorClick(true);
+      }
     }, true); // capture phase to intercept before other handlers
 
     // Prevent context menu when virtual cursor is active
@@ -153,7 +159,7 @@ export class MenuManager {
     });
   }
 
-  _handleVirtualClick() {
+  _handleVirtualCursorClick(rightClick = false) {
     // Find the element under the virtual cursor
     // Temporarily hide the cursor and held item so elementFromPoint finds the slot underneath
     this._vcEl.style.pointerEvents = 'none';
@@ -161,15 +167,18 @@ export class MenuManager {
 
     const el = document.elementFromPoint(this._vcX, this._vcY);
 
-    // Walk up to find an inv-slot element with an onclick handler
+    // Walk up to find inventory/armor slot metadata or a clickable button
     let target = el;
-    for (let i = 0; i < 5 && target; i++) {
-      if (target.onclick || target.dataset?.slot !== undefined) {
-        target.click();
+    for (let i = 0; i < 6 && target; i++) {
+      if (target.dataset?.slotType && target.dataset?.slot !== undefined) {
+        this._handleSlotClick(target.dataset.slotType, Number(target.dataset.slot), { rightClick });
         return;
       }
-      // Check for craft result buttons
-      if (target.tagName === 'BUTTON' && target.onclick) {
+      if (target.classList?.contains('armor-slot') && target.dataset?.slot !== undefined) {
+        this._handleSlotClick('armor', Number(target.dataset.slot), { rightClick });
+        return;
+      }
+      if (!rightClick && target.tagName === 'BUTTON' && target.onclick) {
         target.click();
         return;
       }
@@ -334,8 +343,11 @@ export class MenuManager {
         el.innerHTML = '';
         const item = inventory.armor[i];
         if (item) el.appendChild(this._createSlotIcon(item));
+        el.dataset.slot = i;
+        el.dataset.slotType = 'armor';
         el.style.cursor = 'pointer';
         el.onclick = () => this._handleSlotClick('armor', i);
+        el.oncontextmenu = (e) => { e.preventDefault(); this._handleSlotClick('armor', i, { rightClick: true }); };
       });
     }
 
@@ -752,7 +764,7 @@ export class MenuManager {
 
   // ─── Drag & Drop ──────────────────────────────────────
 
-  _handleSlotClick(slotType, index) {
+  _handleSlotClick(slotType, index, { rightClick = false } = {}) {
     const inventory = this._inventory;
     if (!inventory) return;
 
@@ -765,29 +777,85 @@ export class MenuManager {
 
     const slotItem = slotArray[index];
 
+    if (rightClick && slotType === 'inventory' && !this._heldItem && slotItem) {
+      const slotDef = getItem(slotItem.id);
+      const armorIndex = this._getArmorIndexForItem(slotDef);
+      if (armorIndex !== -1) {
+        const equipped = inventory.armor[armorIndex];
+        inventory.armor[armorIndex] = { ...slotItem, count: 1 };
+        slotArray[index] = equipped ? { ...equipped, count: 1 } : null;
+        this._afterEquipmentChange();
+        this._updateHeldElement();
+        this._refreshCurrentScreen();
+        return;
+      }
+    }
+
     if (this._heldItem) {
+      const heldDef = getItem(this._heldItem.id);
+      if (slotType === 'armor' && !this._canPlaceInArmorSlot(heldDef, index)) {
+        return;
+      }
+
       if (!slotItem) {
-        slotArray[index] = { ...this._heldItem };
-        this._heldItem = null;
-      } else if (slotItem.id === this._heldItem.id) {
+        if (rightClick && this._heldItem.count > 1 && slotType !== 'armor') {
+          slotArray[index] = { ...this._heldItem, count: 1 };
+          this._heldItem.count -= 1;
+        } else {
+          slotArray[index] = { ...this._heldItem };
+          this._heldItem = null;
+        }
+      } else if (slotItem.id === this._heldItem.id && slotType !== 'armor') {
         const maxStack = (getItem(slotItem.id)?.stackSize) ?? 64;
+        const add = rightClick ? Math.min(1, this._heldItem.count) : Math.min(maxStack - slotItem.count, this._heldItem.count);
         const space = maxStack - slotItem.count;
-        const add = Math.min(space, this._heldItem.count);
-        slotItem.count += add;
-        this._heldItem.count -= add;
-        if (this._heldItem.count <= 0) this._heldItem = null;
-      } else {
-        const temp = { ...slotItem };
-        slotArray[index] = { ...this._heldItem };
-        this._heldItem = temp;
+        if (space > 0 && add > 0) {
+          slotItem.count += Math.min(space, add);
+          this._heldItem.count -= Math.min(space, add);
+          if (this._heldItem.count <= 0) this._heldItem = null;
+        }
+      } else if (!rightClick) {
+        if (slotType !== 'armor' || this._canPlaceInArmorSlot(heldDef, index)) {
+          const temp = { ...slotItem };
+          slotArray[index] = { ...this._heldItem };
+          this._heldItem = temp;
+        }
       }
     } else if (slotItem) {
-      this._heldItem = { ...slotItem };
-      slotArray[index] = null;
+      if (rightClick && slotItem.count > 1 && slotType !== 'armor') {
+        const take = Math.ceil(slotItem.count / 2);
+        this._heldItem = { ...slotItem, count: take };
+        slotItem.count -= take;
+        if (slotItem.count <= 0) slotArray[index] = null;
+      } else {
+        this._heldItem = { ...slotItem };
+        slotArray[index] = null;
+      }
+    }
+
+    if (slotType === 'armor' || this._getArmorIndexForItem(getItem(this._heldItem?.id)) !== -1 || this._getArmorIndexForItem(getItem(slotItem?.id)) !== -1) {
+      this._afterEquipmentChange();
     }
 
     this._updateHeldElement();
     this._refreshCurrentScreen();
+  }
+
+  _armorTypeForIndex(index) {
+    return ['helmet', 'chestplate', 'leggings', 'boots'][index] || null;
+  }
+
+  _getArmorIndexForItem(itemDef) {
+    if (!itemDef) return -1;
+    return ['helmet', 'chestplate', 'leggings', 'boots'].indexOf(itemDef.type);
+  }
+
+  _canPlaceInArmorSlot(itemDef, index) {
+    return this._armorTypeForIndex(index) === itemDef?.type;
+  }
+
+  _afterEquipmentChange() {
+    window.game?._checkArmorSetAchievements?.();
   }
 
   _dropHeldItem() {
@@ -914,6 +982,7 @@ export class MenuManager {
     const el = document.createElement('div');
     el.className = 'inv-slot';
     el.dataset.slot = index;
+    el.dataset.slotType = slotType;
     el.style.cssText = 'width:40px;height:40px;border:1px solid #555;background:#1a1a1a;position:relative;cursor:pointer;';
     const item = slots[index];
     if (item) {
@@ -923,6 +992,7 @@ export class MenuManager {
       el.addEventListener('mouseleave', () => this._hideTooltip());
     }
     el.onclick = () => this._handleSlotClick(slotType, index);
+    el.oncontextmenu = (e) => { e.preventDefault(); this._handleSlotClick(slotType, index, { rightClick: true }); };
     return el;
   }
 

@@ -980,10 +980,13 @@ export class Player {
     if (!item) return;
 
     // Determine if item maps to a placeable block
-    // Block items have id < 100 (direct block IDs)
+    // Native block items have id < 100; utility/build items can also declare placeBlockId
     let blockId = null;
     if (item.id < 100) {
       blockId = item.id;
+    } else {
+      const itemDef = getItem(item.id);
+      if (itemDef?.placeBlockId != null) blockId = itemDef.placeBlockId;
     }
 
     if (blockId != null && blockId !== 0) {
