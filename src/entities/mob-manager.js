@@ -60,7 +60,7 @@ const HUMANOID_TYPES = new Set([
 ]);
 const QUADRUPED_TYPES = new Set(['cow', 'pig', 'sheep']);
 const PASSIVE_TYPES = new Set(['cow', 'pig', 'chicken', 'sheep', 'fish', 'villager']);
-const GENERATED_TEXTURE_TYPES = new Set(['zombie', 'husk', 'enderman', 'cow', 'pig', 'sheep', 'giant_zombie', 'corrupted_champion', 'villager']);
+const GENERATED_TEXTURE_TYPES = new Set(['giant_zombie', 'corrupted_champion', 'villager']);
 const HEAD_BODY_TEXTURE_TYPES = new Set(['skeleton', 'creeper', 'spider', 'cave_spider', 'spider_queen', 'chicken']);
 
 export class MobManager {
@@ -473,25 +473,45 @@ export class MobManager {
 
       case 'chase': {
         const toPlayer = this.player.position.clone().sub(mob.position);
-        toPlayer.y = 0;
-        if (toPlayer.length() > 0.5) {
-          this._moveInDirection(mob, toPlayer.normalize(), dt, mob.speed);
+        const flatToPlayer = toPlayer.clone();
+        flatToPlayer.y = 0;
+        const behavior = def?.behavior;
+
+        if (behavior === 'ranged') {
+          const preferredRange = Math.max(4, mob.attackRange * 0.8);
+          const retreatRange = Math.max(2.5, mob.attackRange * 0.45);
+
+          if (flatToPlayer.length() > preferredRange + 0.75) {
+            this._moveInDirection(mob, flatToPlayer.normalize(), dt, mob.speed);
+          } else if (flatToPlayer.length() < retreatRange) {
+            this._moveInDirection(mob, flatToPlayer.normalize().multiplyScalar(-1), dt, mob.speed * 0.9);
+          } else {
+            const strafeDir = new THREE.Vector3(-flatToPlayer.z, 0, flatToPlayer.x).normalize();
+            this._moveInDirection(mob, strafeDir.multiplyScalar(mob._strafeDir || 1), dt, mob.speed * 0.55);
+            if (Math.random() < dt * 0.8) mob._strafeDir = (mob._strafeDir || 1) * -1;
+          }
+        } else if (flatToPlayer.length() > 0.5) {
+          this._moveInDirection(mob, flatToPlayer.normalize(), dt, mob.speed);
         }
 
         if (distToPlayer <= mob.attackRange) {
           mob.state = 'attack';
-          mob.stateTimer = 0.5;
+          mob.stateTimer = behavior === 'ranged' ? 0.8 : 0.5;
         }
         if (distToPlayer > mob.aggroRange * 1.5 || mob.stateTimer <= 0) {
           mob.state = 'idle';
           mob.stateTimer = _rand(IDLE_MIN, IDLE_MAX);
         }
 
-        // Flying mobs hover at player eye level
+        // Flying mobs hover at player eye level and circle a little instead of face-tanking.
         if (def && def.behavior === 'fly') {
-          const targetY = this.player.position.y + 1.5 + Math.sin(this._time * 2) * 0.5;
+          const targetY = this.player.position.y + 1.8 + Math.sin(this._time * 2 + mob._animTime) * 0.7;
           mob.velocity.y += (targetY - mob.position.y) * 0.05;
           mob.velocity.y *= 0.9;
+          if (flatToPlayer.length() > 0.001) {
+            const orbitDir = new THREE.Vector3(-flatToPlayer.z, 0, flatToPlayer.x).normalize();
+            this._moveInDirection(mob, orbitDir.multiplyScalar(mob._strafeDir || 1), dt, 0.35);
+          }
         }
         break;
       }

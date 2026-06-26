@@ -108,7 +108,7 @@ export class CombatSystem {
         if (isKill) {
           window.game.runStats.mobsKilled = (window.game.runStats.mobsKilled || 0) + 1;
           // Boss tracking
-          if (mob._def?.isBoss) {
+          if (mob._def?.boss) {
             window.game.runStats.bossesKilled = (window.game.runStats.bossesKilled || 0) + 1;
           }
           // Creeper pre-kill (killed before explosion)
@@ -213,7 +213,7 @@ export class CombatSystem {
       }
 
       arrow.velocity.y -= 9.8 * dt; // proper dt-based gravity
-      arrow.mesh.position.add(arrow.velocity.clone().multiplyScalar(dt * 60));
+      arrow.mesh.position.add(arrow.velocity.clone().multiplyScalar(dt));
       arrow.mesh.lookAt(arrow.mesh.position.clone().add(arrow.velocity));
 
       let hit = false;
