@@ -481,17 +481,15 @@ export class Player {
 
       if (dropName) {
         const itemDef = getItemByName(dropName);
-        if (itemDef) {
-          const remaining = this.inventory.addItem(itemDef.id, dropCount);
-          if (remaining > 0) {
-            // Inventory full — spawn 3D drop in world
-            this._spawnDroppedItem(itemDef.id, pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
-          }
-        } else {
-          // No matching item — try adding block as its own item (block-id based)
-          const remaining = this.inventory.addItem(blockId, dropCount);
-          if (remaining > 0) {
-            this._spawnDroppedItem(blockId, pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
+        const dropItemId = itemDef ? itemDef.id : blockId;
+        if (dropItemId != null) {
+          // Phase 1: Spawn 3D pickup instead of direct inventory add
+          if (this._pickupManager) {
+            this._pickupManager.spawn(dropItemId, pos.x + 0.5, pos.y + 0.5, pos.z + 0.5, { count: dropCount });
+          } else {
+            // Fallback: direct add if no pickup manager
+            const remaining = this.inventory.addItem(dropItemId, dropCount);
+            if (remaining > 0) this._spawnDroppedItem(dropItemId, pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
           }
         }
       }

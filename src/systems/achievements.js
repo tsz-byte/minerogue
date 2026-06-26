@@ -1,245 +1,579 @@
-// MineRogue - Achievement Tracking System
-// 30+ achievements across Combat, Mining, Exploration, Crafting, Progression categories
-// localStorage persistence, toast notifications on unlock
+// Achievement tracking system for MineRogue
+// Tracks player stats and unlocks achievements with rewards
 
 const STORAGE_KEY = 'minerogue_achievements';
+const STATS_KEY = 'minerogue_stats';
 
-// ─── Achievement Definitions ──────────────────────────────────────
-export const ACHIEVEMENT_CATEGORIES = {
-  COMBAT: 'Combat',
-  MINING: 'Mining',
-  EXPLORATION: 'Exploration',
-  CRAFTING: 'Crafting',
-  PROGRESSION: 'Progression',
-};
+// All 30 achievements defined
+const ACHIEVEMENTS = [
+  // === COMBAT ===
+  {
+    id: 'first_blood',
+    name: 'First Blood',
+    description: 'Kill your first mob',
+    category: 'combat',
+    condition: (stats) => stats.kills >= 1,
+    reward: { soulShards: 5 }
+  },
+  {
+    id: 'slayer',
+    name: 'Slayer',
+    description: 'Kill 50 mobs',
+    category: 'combat',
+    condition: (stats) => stats.kills >= 50,
+    reward: { soulShards: 25 }
+  },
+  {
+    id: 'mass_slayer',
+    name: 'Mass Slayer',
+    description: 'Kill 200 mobs',
+    category: 'combat',
+    condition: (stats) => stats.kills >= 200,
+    reward: { soulShards: 50 }
+  },
+  {
+    id: 'boss_slayer',
+    name: 'Boss Slayer',
+    description: 'Defeat your first boss',
+    category: 'combat',
+    condition: (stats) => stats.bossesKilled >= 1,
+    reward: { soulShards: 50 }
+  },
+  {
+    id: 'untouchable',
+    name: 'Untouchable',
+    description: 'Kill 10 mobs without taking damage',
+    category: 'combat',
+    condition: (stats) => stats.killsWithoutDamage >= 10,
+    reward: { soulShards: 30 }
+  },
+  {
+    id: 'berserker',
+    name: 'Berserker',
+    description: 'Kill 5 mobs in 10 seconds',
+    category: 'combat',
+    condition: (stats) => stats.killsInWindow >= 5,
+    reward: { soulShards: 20 }
+  },
 
-export const ACHIEVEMENTS = [
-  // ── COMBAT ──
-  { id: 'first_kill', name: 'First Blood', desc: 'Kill your first mob', category: 'Combat', icon: '⚔️', check: (s) => s.mobsKilled >= 1 },
-  { id: 'kill_10', name: 'Monster Hunter', desc: 'Kill 10 mobs', category: 'Combat', icon: '🗡️', check: (s) => s.mobsKilled >= 10 },
-  { id: 'kill_50', name: 'Slaughter', desc: 'Kill 50 mobs in one run', category: 'Combat', icon: '💀', check: (s) => s.mobsKilled >= 50 },
-  { id: 'kill_100', name: 'War Machine', desc: 'Kill 100 mobs in one run', category: 'Combat', icon: '🔥', check: (s) => s.mobsKilled >= 100 },
-  { id: 'boss_slayer', name: 'Boss Slayer', desc: 'Defeat a boss', category: 'Combat', icon: '👑', check: (s) => s.bossesKilled >= 1 },
-  { id: 'boss_3', name: 'Boss Hunter', desc: 'Defeat 3 bosses', category: 'Combat', icon: '🏆', check: (s) => s.bossesKilled >= 3 },
-  { id: 'no_hit_boss', name: 'Untouchable', desc: 'Defeat a boss without taking damage', category: 'Combat', icon: '✨', check: (s) => s.bossNoHit },
-  { id: 'kill_creeper', name: 'SSSssss...', desc: 'Kill a Creeper before it explodes', category: 'Combat', icon: '🧨', check: (s) => s.creeperPreKill >= 1 },
-  { id: 'first_crit', name: 'Critical Hit!', desc: 'Land your first critical hit', category: 'Combat', icon: '💫', check: (s) => s.critsLanded >= 1 },
+  // === MINING ===
+  {
+    id: 'novice_miner',
+    name: 'Novice Miner',
+    description: 'Mine 100 blocks',
+    category: 'mining',
+    condition: (stats) => stats.blocksMined >= 100,
+    reward: { soulShards: 10 }
+  },
+  {
+    id: 'expert_miner',
+    name: 'Expert Miner',
+    description: 'Mine 1,000 blocks',
+    category: 'mining',
+    condition: (stats) => stats.blocksMined >= 1000,
+    reward: { soulShards: 30 }
+  },
+  {
+    id: 'master_miner',
+    name: 'Master Miner',
+    description: 'Mine 5,000 blocks',
+    category: 'mining',
+    condition: (stats) => stats.blocksMined >= 5000,
+    reward: { soulShards: 75 }
+  },
+  {
+    id: 'diamond_finder',
+    name: 'Diamond Finder',
+    description: 'Find your first diamond',
+    category: 'mining',
+    condition: (stats) => stats.diamondsFound >= 1,
+    reward: { soulShards: 20 }
+  },
+  {
+    id: 'crystal_finder',
+    name: 'Crystal Finder',
+    description: 'Find your first crystal',
+    category: 'mining',
+    condition: (stats) => stats.crystalsFound >= 1,
+    reward: { soulShards: 20 }
+  },
+  {
+    id: 'gem_collector',
+    name: 'Gem Collector',
+    description: 'Find 10 rare gems (diamonds or crystals)',
+    category: 'mining',
+    condition: (stats) => (stats.diamondsFound + stats.crystalsFound) >= 10,
+    reward: { soulShards: 40 }
+  },
 
-  // ── MINING ──
-  { id: 'first_mine', name: 'Getting Started', desc: 'Mine your first block', category: 'Mining', icon: '⛏️', check: (s) => s.blocksMined >= 1 },
-  { id: 'mine_100', name: 'Miner', desc: 'Mine 100 blocks', category: 'Mining', icon: '🪨', check: (s) => s.blocksMined >= 100 },
-  { id: 'mine_500', name: 'Excavator', desc: 'Mine 500 blocks', category: 'Mining', icon: '💎', check: (s) => s.blocksMined >= 500 },
-  { id: 'mine_1000', name: 'Terraformer', desc: 'Mine 1000 blocks', category: 'Mining', icon: '🌍', check: (s) => s.blocksMined >= 1000 },
-  { id: 'find_diamond', name: 'Diamond Find!', desc: 'Mine a diamond ore', category: 'Mining', icon: '💎', check: (s) => s.diamondsMined >= 1 },
-  { id: 'find_iron', name: 'Iron Will', desc: 'Mine iron ore for the first time', category: 'Mining', icon: '🪙', check: (s) => s.ironMined >= 1 },
-  { id: 'find_gold', name: 'Gold Rush', desc: 'Mine gold ore for the first time', category: 'Mining', icon: '🥇', check: (s) => s.goldMined >= 1 },
-  { id: 'find_crystal', name: 'Crystal Clear', desc: 'Mine crystal ore', category: 'Mining', icon: '🔮', check: (s) => s.crystalMined >= 1 },
-  { id: 'find_obsidian', name: 'Obsidian!', desc: 'Mine obsidian', category: 'Mining', icon: '⬛', check: (s) => s.obsidianMined >= 1 },
-  { id: 'break_tool', name: 'Oops...', desc: 'Break a tool', category: 'Mining', icon: '🔧', check: (s) => s.toolsBroken >= 1 },
+  // === CRAFTING ===
+  {
+    id: 'first_craft',
+    name: 'First Craft',
+    description: 'Craft your first item',
+    category: 'crafting',
+    condition: (stats) => stats.itemsCrafted >= 1,
+    reward: { soulShards: 5 }
+  },
+  {
+    id: 'crafter',
+    name: 'Crafter',
+    description: 'Craft 50 items',
+    category: 'crafting',
+    condition: (stats) => stats.itemsCrafted >= 50,
+    reward: { soulShards: 25 }
+  },
+  {
+    id: 'iron_smith',
+    name: 'Iron Smith',
+    description: 'Craft iron tools',
+    category: 'crafting',
+    condition: (stats) => stats.ironToolsCrafted >= 1,
+    reward: { soulShards: 15 }
+  },
+  {
+    id: 'diamond_smith',
+    name: 'Diamond Smith',
+    description: 'Craft diamond tools',
+    category: 'crafting',
+    condition: (stats) => stats.diamondToolsCrafted >= 1,
+    reward: { soulShards: 40 }
+  },
+  {
+    id: 'master_crafter',
+    name: 'Master Crafter',
+    description: 'Craft 200 items',
+    category: 'crafting',
+    condition: (stats) => stats.itemsCrafted >= 200,
+    reward: { soulShards: 60 }
+  },
 
-  // ── EXPLORATION ──
-  { id: 'first_structure', name: 'Explorer', desc: 'Find a structure', category: 'Exploration', icon: '🗺️', check: (s) => s.structuresFound >= 1 },
-  { id: 'find_5_structures', name: 'Adventurer', desc: 'Find 5 structures', category: 'Exploration', icon: '🧭', check: (s) => s.structuresFound >= 5 },
-  { id: 'open_chest', name: 'Treasure!', desc: 'Open a chest', category: 'Exploration', icon: '📦', check: (s) => s.chestsOpened >= 1 },
-  { id: 'open_10_chests', name: 'Treasure Hunter', desc: 'Open 10 chests', category: 'Exploration', icon: '🎁', check: (s) => s.chestsOpened >= 10 },
-  { id: 'find_shrine', name: 'Divine', desc: 'Find and use a shrine', category: 'Exploration', icon: '🏛️', check: (s) => s.shrinesUsed >= 1 },
-  { id: 'visit_biomes_3', name: 'World Traveler', desc: 'Visit 3 different biomes', category: 'Exploration', icon: '🌈', check: (s) => (s.biomesVisited?.size ?? 0) >= 3 },
-  { id: 'reach_depth_5', name: 'Deep Diver', desc: 'Reach floor 5', category: 'Exploration', icon: '⬇️', check: (s) => s.depth >= 5 },
-  { id: 'reach_depth_10', name: 'Abyss Walker', desc: 'Reach floor 10', category: 'Exploration', icon: '🕳️', check: (s) => s.depth >= 10 },
+  // === EXPLORATION ===
+  {
+    id: 'wanderer',
+    name: 'Wanderer',
+    description: 'Walk 1,000 blocks',
+    category: 'exploration',
+    condition: (stats) => stats.distanceTraveled >= 1000,
+    reward: { soulShards: 10 }
+  },
+  {
+    id: 'explorer',
+    name: 'Explorer',
+    description: 'Walk 10,000 blocks',
+    category: 'exploration',
+    condition: (stats) => stats.distanceTraveled >= 10000,
+    reward: { soulShards: 30 }
+  },
+  {
+    id: 'world_traveler',
+    name: 'World Traveler',
+    description: 'Walk 50,000 blocks',
+    category: 'exploration',
+    condition: (stats) => stats.distanceTraveled >= 50000,
+    reward: { soulShards: 75 }
+  },
+  {
+    id: 'biome_hopper',
+    name: 'Biome Hopper',
+    description: 'Visit all biomes',
+    category: 'exploration',
+    condition: (stats) => stats.uniqueBiomesVisited >= stats.totalBiomes && stats.totalBiomes > 0,
+    reward: { soulShards: 50 }
+  },
+  {
+    id: 'structure_finder',
+    name: 'Structure Finder',
+    description: 'Find a structure',
+    category: 'exploration',
+    condition: (stats) => stats.structuresFound >= 1,
+    reward: { soulShards: 15 }
+  },
 
-  // ── CRAFTING ──
-  { id: 'first_craft', name: 'Craftsman', desc: 'Craft your first item', category: 'Crafting', icon: '🔨', check: (s) => s.craftsDone >= 1 },
-  { id: 'craft_10', name: 'Artisan', desc: 'Craft 10 items', category: 'Crafting', icon: '⚒️', check: (s) => s.craftsDone >= 10 },
-  { id: 'craft_50', name: 'Master Crafter', desc: 'Craft 50 items', category: 'Crafting', icon: '🏭', check: (s) => s.craftsDone >= 50 },
-  { id: 'full_iron', name: 'Ironclad', desc: 'Wear a full set of iron armor', category: 'Crafting', icon: '🛡️', check: (s) => s.fullIronArmor },
-  { id: 'full_diamond', name: 'Diamond Armor', desc: 'Wear a full set of diamond armor', category: 'Crafting', icon: '💠', check: (s) => s.fullDiamondArmor },
-  { id: 'full_crystal', name: 'Crystallized', desc: 'Wear a full set of crystal armor', category: 'Crafting', icon: '🔮', check: (s) => s.fullCrystalArmor },
-  { id: 'cook_food', name: 'Chef', desc: 'Eat 10 food items', category: 'Crafting', icon: '🍖', check: (s) => s.foodEaten >= 10 },
-  { id: 'use_potion', name: 'Alchemist', desc: 'Drink a potion', category: 'Crafting', icon: '🧪', check: (s) => s.potionsUsed >= 1 },
-  { id: 'first_enchant', name: 'Enchanted', desc: 'Enchant an item for the first time', category: 'Crafting', icon: '📚', check: (s) => s.itemsEnchanted >= 1 },
+  // === SURVIVAL ===
+  {
+    id: 'survivor',
+    name: 'Survivor',
+    description: 'Survive for 10 minutes',
+    category: 'survival',
+    condition: (stats) => stats.survivalTime >= 600,
+    reward: { soulShards: 15 }
+  },
+  {
+    id: 'veteran',
+    name: 'Veteran',
+    description: 'Survive for 30 minutes',
+    category: 'survival',
+    condition: (stats) => stats.survivalTime >= 1800,
+    reward: { soulShards: 40 }
+  },
+  {
+    id: 'death_count',
+    name: 'Experienced Death',
+    description: 'Die 10 times',
+    category: 'survival',
+    condition: (stats) => stats.deaths >= 10,
+    reward: { soulShards: 10 }
+  },
+  {
+    id: 'golden_feast',
+    name: 'Golden Feast',
+    description: 'Eat a golden apple',
+    category: 'survival',
+    condition: (stats) => stats.goldenApplesEaten >= 1,
+    reward: { soulShards: 20 }
+  },
+  {
+    id: 'deathless',
+    name: 'Deathless',
+    description: 'Survive 15 minutes without dying',
+    category: 'survival',
+    condition: (stats) => stats.currentLifeTime >= 900,
+    reward: { soulShards: 50 }
+  },
 
-  // ── PROGRESSION ──
-  { id: 'first_death', name: 'RIP', desc: 'Die for the first time', category: 'Progression', icon: '💀', check: (s) => s.totalDeaths >= 1 },
-  { id: 'first_run', name: 'Beginner', desc: 'Complete your first run', category: 'Progression', icon: '🏁', check: (s) => s.totalRuns >= 1 },
-  { id: 'runs_10', name: 'Veteran', desc: 'Complete 10 runs', category: 'Progression', icon: '🎖️', check: (s) => s.totalRuns >= 10 },
-  { id: 'earn_100_shards', name: 'Soul Collector', desc: 'Earn 100 soul shards', category: 'Progression', icon: '✦', check: (s) => s.totalShardsEarned >= 100 },
-  { id: 'earn_500_shards', name: 'Soul Hoarder', desc: 'Earn 500 soul shards', category: 'Progression', icon: '⭐', check: (s) => s.totalShardsEarned >= 500 },
-  { id: 'travel_1000', name: 'Long Walk', desc: 'Travel 1000 blocks in one run', category: 'Progression', icon: '🚶', check: (s) => s.distanceTraveled >= 1000 },
-  { id: 'travel_5000', name: 'Marathon', desc: 'Travel 5000 blocks in one run', category: 'Progression', icon: '🏃', check: (s) => s.distanceTraveled >= 5000 },
-  { id: 'survive_10min', name: 'Survivor', desc: 'Survive for 10 minutes', category: 'Progression', icon: '⏱️', check: (s) => s.survivalTime >= 600 },
-  { id: 'survive_30min', name: 'Endurance', desc: 'Survive for 30 minutes', category: 'Progression', icon: '⏳', check: (s) => s.survivalTime >= 1800 },
+  // === PROGRESSION ===
+  {
+    id: 'soul_hoarder',
+    name: 'Soul Hoarder',
+    description: 'Earn 100 soul shards total',
+    category: 'progression',
+    condition: (stats) => stats.totalSoulShardsEarned >= 100,
+    reward: { soulShards: 10 }
+  },
+  {
+    id: 'first_upgrade',
+    name: 'First Upgrade',
+    description: 'Buy your first upgrade',
+    category: 'progression',
+    condition: (stats) => stats.upgradesPurchased >= 1,
+    reward: { soulShards: 10 }
+  },
+  {
+    id: 'level_five',
+    name: 'Rising Star',
+    description: 'Reach level 5',
+    category: 'progression',
+    condition: (stats) => stats.playerLevel >= 5,
+    reward: { soulShards: 25 }
+  }
 ];
-
-// ─── Achievement Tracker ──────────────────────────────────────────
 
 export class AchievementSystem {
   constructor() {
-    // Unlocked achievements: { id: timestamp }
-    this._unlocked = this._load();
-    // Pending toast queue
-    this._toastQueue = [];
-    // External toast callback (set by game)
-    this._onToast = null;
-    // External stats getter (set by game)
-    this._getStats = null;
+    this.achievements = ACHIEVEMENTS;
+    this.unlockedIds = new Set();
+    this.stats = this._getDefaultStats();
+    this.toastQueue = [];
+    this._load();
   }
 
-  /**
-   * Set the toast callback function (e.g. hud.showToast)
-   */
-  setToastCallback(fn) {
-    this._onToast = fn;
+  _getDefaultStats() {
+    return {
+      kills: 0,
+      killsWithoutDamage: 0,
+      killsInWindow: 0,
+      bossesKilled: 0,
+      blocksMined: 0,
+      diamondsFound: 0,
+      crystalsFound: 0,
+      itemsCrafted: 0,
+      ironToolsCrafted: 0,
+      diamondToolsCrafted: 0,
+      distanceTraveled: 0,
+      uniqueBiomesVisited: 0,
+      totalBiomes: 0,
+      structuresFound: 0,
+      survivalTime: 0,
+      currentLifeTime: 0,
+      deaths: 0,
+      goldenApplesEaten: 0,
+      totalSoulShardsEarned: 0,
+      upgradesPurchased: 0,
+      playerLevel: 1,
+      // Internal tracking for kill window
+      _killTimestamps: [],
+      _damageTakenSinceLastKill: false
+    };
   }
-
-  /**
-   * Set the stats getter function that returns current run stats
-   */
-  setStatsGetter(fn) {
-    this._getStats = fn;
-  }
-
-  /**
-   * Get all achievement definitions with unlock status
-   */
-  getAll() {
-    return ACHIEVEMENTS.map(a => ({
-      ...a,
-      unlocked: !!this._unlocked[a.id],
-      unlockedAt: this._unlocked[a.id] || null,
-    }));
-  }
-
-  /**
-   * Get unlocked count
-   */
-  getUnlockedCount() {
-    return Object.keys(this._unlocked).length;
-  }
-
-  /**
-   * Get total achievement count
-   */
-  getTotalCount() {
-    return ACHIEVEMENTS.length;
-  }
-
-  /**
-   * Check if a specific achievement is unlocked
-   */
-  isUnlocked(id) {
-    return !!this._unlocked[id];
-  }
-
-  /**
-   * Manually unlock an achievement (used for special cases)
-   */
-  unlock(id) {
-    if (this._unlocked[id]) return false;
-    const def = ACHIEVEMENTS.find(a => a.id === id);
-    if (!def) return false;
-    this._unlocked[id] = Date.now();
-    this._save();
-    this._queueToast(def);
-    return true;
-  }
-
-  /**
-   * Check all achievements against current stats.
-   * Call this whenever stats change.
-   */
-  checkAll(stats) {
-    for (const ach of ACHIEVEMENTS) {
-      if (this._unlocked[ach.id]) continue;
-      try {
-        if (ach.check(stats)) {
-          this._unlocked[ach.id] = Date.now();
-          this._queueToast(ach);
-        }
-      } catch (e) {
-        // Stats may not have all fields; skip
-      }
-    }
-    this._save();
-    this._flushToasts();
-  }
-
-  /**
-   * Quick check a single achievement by id against stats
-   */
-  check(id, stats) {
-    if (this._unlocked[id]) return;
-    const def = ACHIEVEMENTS.find(a => a.id === id);
-    if (!def) return;
-    try {
-      if (def.check(stats)) {
-        this._unlocked[id] = Date.now();
-        this._save();
-        this._queueToast(def);
-        this._flushToasts();
-      }
-    } catch (e) {}
-  }
-
-  /**
-   * Get progress summary for display
-   */
-  getProgressByCategory() {
-    const cats = {};
-    for (const cat of Object.values(ACHIEVEMENT_CATEGORIES)) {
-      cats[cat] = { total: 0, unlocked: 0, achievements: [] };
-    }
-    for (const a of ACHIEVEMENTS) {
-      const cat = cats[a.category];
-      if (!cat) continue;
-      cat.total++;
-      const unlocked = !!this._unlocked[a.id];
-      if (unlocked) cat.unlocked++;
-      cat.achievements.push({ ...a, unlocked, unlockedAt: this._unlocked[a.id] || null });
-    }
-    return cats;
-  }
-
-  // ── Persistence ──
 
   _load() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
+      const savedUnlocked = localStorage.getItem(STORAGE_KEY);
+      if (savedUnlocked) {
+        const arr = JSON.parse(savedUnlocked);
+        this.unlockedIds = new Set(arr);
+      }
+      const savedStats = localStorage.getItem(STATS_KEY);
+      if (savedStats) {
+        const loaded = JSON.parse(savedStats);
+        // Merge with defaults to handle new fields
+        this.stats = { ...this._getDefaultStats(), ...loaded };
+      }
     } catch (e) {
-      return {};
+      console.warn('Failed to load achievement data:', e);
     }
   }
 
   _save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this._unlocked));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...this.unlockedIds]));
+      localStorage.setItem(STATS_KEY, JSON.stringify(this.stats));
     } catch (e) {
-      console.warn('Failed to save achievements:', e);
-    }
-  }
-
-  // ── Toast Queue ──
-
-  _queueToast(achievement) {
-    this._toastQueue.push(achievement);
-  }
-
-  _flushToasts() {
-    while (this._toastQueue.length > 0) {
-      const ach = this._toastQueue.shift();
-      if (this._onToast) {
-        this._onToast(`🏆 Achievement: ${ach.name} — ${ach.desc}`);
-      }
-      // Also dispatch a DOM event for UI hooks
-      window.dispatchEvent(new CustomEvent('achievement-unlocked', { detail: ach }));
+      console.warn('Failed to save achievement data:', e);
     }
   }
 
   /**
-   * Reset all achievements (for testing or new game)
+   * Update stats based on an event and check for newly unlocked achievements.
+   * @param {string} eventType - The type of event
+   * @param {object} data - Event-specific data
+   * @returns {Array} Array of newly unlocked achievements (with reward info)
+   */
+  check(eventType, data = {}) {
+    this._updateStats(eventType, data);
+    const newlyUnlocked = [];
+
+    for (const achievement of this.achievements) {
+      if (this.unlockedIds.has(achievement.id)) continue;
+
+      try {
+        if (achievement.condition(this.stats)) {
+          this.unlockedIds.add(achievement.id);
+          newlyUnlocked.push(achievement);
+          this.toastQueue.push({
+            id: achievement.id,
+            name: achievement.name,
+            description: achievement.description,
+            reward: achievement.reward
+          });
+        }
+      } catch (e) {
+        // Condition check failed, skip
+      }
+    }
+
+    if (newlyUnlocked.length > 0) {
+      this._save();
+    }
+
+    return newlyUnlocked;
+  }
+
+  _updateStats(eventType, data) {
+    const now = Date.now();
+
+    switch (eventType) {
+      case 'kill': {
+        this.stats.kills++;
+        const isBoss = data.isBoss || false;
+        if (isBoss) {
+          this.stats.bossesKilled++;
+        }
+
+        // Track kill window for berserker achievement
+        this.stats._killTimestamps.push(now);
+        // Keep only kills in last 10 seconds
+        this.stats._killTimestamps = this.stats._killTimestamps.filter(t => now - t <= 10000);
+        this.stats.killsInWindow = this.stats._killTimestamps.length;
+
+        // Track kills without damage
+        if (this.stats._damageTakenSinceLastKill) {
+          this.stats.killsWithoutDamage = 1; // Reset streak, this kill counts as 1
+          this.stats._damageTakenSinceLastKill = false;
+        } else {
+          this.stats.killsWithoutDamage++;
+        }
+        break;
+      }
+
+      case 'damage_taken': {
+        this.stats._damageTakenSinceLastKill = true;
+        this.stats.killsWithoutDamage = 0;
+        break;
+      }
+
+      case 'block_mined': {
+        this.stats.blocksMined++;
+        const blockType = data.blockType || '';
+        if (blockType === 'diamond' || blockType === 'diamond_ore') {
+          this.stats.diamondsFound++;
+        }
+        if (blockType === 'crystal' || blockType === 'crystal_ore') {
+          this.stats.crystalsFound++;
+        }
+        break;
+      }
+
+      case 'item_crafted': {
+        this.stats.itemsCrafted++;
+        const itemType = data.itemType || '';
+        const tier = data.tier || '';
+        if (itemType.includes('tool') || itemType.includes('sword') || itemType.includes('pickaxe')) {
+          if (tier === 'iron') {
+            this.stats.ironToolsCrafted++;
+          }
+          if (tier === 'diamond') {
+            this.stats.diamondToolsCrafted++;
+          }
+        }
+        break;
+      }
+
+      case 'move': {
+        const distance = data.distance || 0;
+        this.stats.distanceTraveled += distance;
+        break;
+      }
+
+      case 'biome_visit': {
+        if (data.isNewBiome) {
+          this.stats.uniqueBiomesVisited++;
+        }
+        if (data.totalBiomes !== undefined) {
+          this.stats.totalBiomes = data.totalBiomes;
+        }
+        break;
+      }
+
+      case 'structure_found': {
+        this.stats.structuresFound++;
+        break;
+      }
+
+      case 'survive': {
+        const elapsed = data.elapsed || 0;
+        this.stats.survivalTime += elapsed;
+        this.stats.currentLifeTime += elapsed;
+        break;
+      }
+
+      case 'death': {
+        this.stats.deaths++;
+        this.stats.currentLifeTime = 0; // Reset life timer
+        break;
+      }
+
+      case 'eat': {
+        const foodType = data.foodType || '';
+        if (foodType === 'golden_apple' || foodType === 'golden-apple') {
+          this.stats.goldenApplesEaten++;
+        }
+        break;
+      }
+
+      case 'soul_shards_earned': {
+        const amount = data.amount || 0;
+        this.stats.totalSoulShardsEarned += amount;
+        break;
+      }
+
+      case 'upgrade_purchased': {
+        this.stats.upgradesPurchased++;
+        break;
+      }
+
+      case 'level_up': {
+        if (data.level !== undefined) {
+          this.stats.playerLevel = data.level;
+        }
+        break;
+      }
+
+      // Allow direct stat updates for flexibility
+      case 'set_stat': {
+        if (data.stat && data.value !== undefined) {
+          this.stats[data.stat] = data.value;
+        }
+        break;
+      }
+    }
+
+    this._save();
+  }
+
+  /**
+   * Get all achievements with their unlock status.
+   * @returns {Array} Array of achievement objects with unlocked flag
+   */
+  getAll() {
+    return this.achievements.map(a => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      category: a.category,
+      reward: a.reward,
+      unlocked: this.unlockedIds.has(a.id)
+    }));
+  }
+
+  /**
+   * Get count of unlocked achievements.
+   * @returns {number}
+   */
+  getUnlockedCount() {
+    return this.unlockedIds.size;
+  }
+
+  /**
+   * Get total achievement count.
+   * @returns {number}
+   */
+  getTotalCount() {
+    return this.achievements.length;
+  }
+
+  /**
+   * Get achievements by category.
+   * @param {string} category
+   * @returns {Array}
+   */
+  getByCategory(category) {
+    return this.getAll().filter(a => a.category === category);
+  }
+
+  /**
+   * Get current player stats.
+   * @returns {object}
+   */
+  getStats() {
+    return { ...this.stats };
+  }
+
+  /**
+   * Check if a specific achievement is unlocked.
+   * @param {string} id
+   * @returns {boolean}
+   */
+  isUnlocked(id) {
+    return this.unlockedIds.has(id);
+  }
+
+  /**
+   * Pop the next toast notification from the queue.
+   * @returns {object|null} Toast data or null if queue is empty
+   */
+  popToast() {
+    return this.toastQueue.shift() || null;
+  }
+
+  /**
+   * Get all pending toasts and clear the queue.
+   * @returns {Array}
+   */
+  flushToasts() {
+    const toasts = [...this.toastQueue];
+    this.toastQueue = [];
+    return toasts;
+  }
+
+  /**
+   * Reset all progress (for testing or new game).
    */
   reset() {
-    this._unlocked = {};
+    this.unlockedIds = new Set();
+    this.stats = this._getDefaultStats();
+    this.toastQueue = [];
     this._save();
   }
 }

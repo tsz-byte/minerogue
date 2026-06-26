@@ -141,6 +141,28 @@ export const CRAFTING_RECIPES = [
   { pattern: [[null, 'Gold Ingot', null], ['Gold Ingot', 'Redstone', 'Gold Ingot'], [null, 'Gold Ingot', null]], result: { id: 'Clock', count: 1 } },
   // Compass
   { pattern: [[null, 'Iron Ingot', null], ['Iron Ingot', 'Redstone', 'Iron Ingot'], [null, 'Iron Ingot', null]], result: { id: 'Compass', count: 1 } },
+
+  // ===== MISC CRAFTING =====
+  // Lead / Leash
+  { pattern: [['String', 'String', null], ['String', 'Slime', null], [null, null, 'String']], result: { id: 'Lead', count: 1 } },
+  // Name Tag (shapeless)
+  { pattern: [['String', 'Paper']], result: { id: 'Name Tag', count: 1 }, shapeless: true },
+  // Torch from Charcoal variant
+  { pattern: [['Charcoal'], ['Stick']], result: { id: 'Torch', count: 4 } },
+  // Barrel
+  { pattern: [['Oak Planks', 'Oak Planks', 'Oak Planks'], ['Oak Planks', null, 'Oak Planks'], ['Oak Planks', 'Oak Planks', 'Oak Planks']], result: { id: 'Barrel', count: 1 } },
+  // Stone Bricks
+  { pattern: [['Stone', 'Stone'], ['Stone', 'Stone']], result: { id: 'Stone Bricks', count: 4 } },
+  // Glass Pane
+  { pattern: [['Glass', 'Glass', 'Glass'], ['Glass', 'Glass', 'Glass']], result: { id: 'Glass Pane', count: 16 } },
+  // Iron Bars
+  { pattern: [['Iron Ingot', 'Iron Ingot', 'Iron Ingot'], ['Iron Ingot', 'Iron Ingot', 'Iron Ingot']], result: { id: 'Iron Bars', count: 16 } },
+  // Hay Bale
+  { pattern: [['Wheat', 'Wheat', 'Wheat'], ['Wheat', 'Wheat', 'Wheat'], ['Wheat', 'Wheat', 'Wheat']], result: { id: 'Hay Bale', count: 1 } },
+  // Painting
+  { pattern: [['Stick', 'Stick', 'Stick'], ['Stick', 'White Wool', 'Stick'], ['Stick', 'Stick', 'Stick']], result: { id: 'Painting', count: 1 } },
+  // Item Frame
+  { pattern: [['Stick', 'Stick', 'Stick'], ['Stick', 'Leather', 'Stick'], ['Stick', 'Stick', 'Stick']], result: { id: 'Item Frame', count: 1 } },
 ];
 
 // ============================================================

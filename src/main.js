@@ -22,6 +22,9 @@ import { getItem } from './data/items.js';
 import { Minimap } from './ui/minimap.js';
 import { HandRenderer } from './ui/hand.js';
 import { createTextureAtlas, createItemTextureAtlas } from './textures.js';
+import { AchievementSystem } from './systems/achievements.js';
+import { EnchantmentSystem } from './systems/enchantments.js';
+import { PickupManager } from './entities/pickup.js';
 
 // Game states
 const STATE = {
@@ -52,6 +55,11 @@ class Game {
     this.roguelike = new RoguelikeSystem();
     this.homeWorld = new HomeWorld(this.saveSystem);
     this.minimap = null;
+
+    // Phase 1 systems
+    this.achievements = new AchievementSystem();
+    this.enchantments = new EnchantmentSystem();
+    this.pickupManager = null; // Created per-run with scene
 
     // Runtime state
     this.world = null;
@@ -103,6 +111,27 @@ class Game {
       depth: 0,
       startTime: Date.now(),
       biomesVisited: new Set(),
+      // Achievement tracking stats
+      critsLanded: 0,
+      creeperPreKill: 0,
+      bossNoHit: false,
+      diamondsMined: 0,
+      ironMined: 0,
+      goldMined: 0,
+      crystalMined: 0,
+      obsidianMined: 0,
+      toolsBroken: 0,
+      chestsOpened: 0,
+      foodEaten: 0,
+      potionsUsed: 0,
+      itemsEnchanted: 0,
+      totalDeaths: 0,
+      totalRuns: 0,
+      totalShardsEarned: 0,
+      survivalTime: 0,
+      fullIronArmor: false,
+      fullDiamondArmor: false,
+      fullCrystalArmor: false,
     };
   }
 
@@ -256,6 +285,15 @@ class Game {
         return mob;
       };
     }
+
+    // Pickup manager (Phase 1 - 3D block drops)
+    if (this.pickupManager) this.pickupManager.clear();
+    this.pickupManager = new PickupManager(scene);
+    this.player._pickupManager = this.pickupManager;
+
+    // Wire up achievement system
+    this.achievements.setToastCallback((msg) => this.hud.showToast(msg));
+    this.achievements.setStatsGetter(() => this.runStats);
 
     // Minimap
     this.minimap = new Minimap(this.world);
@@ -443,6 +481,15 @@ class Game {
     this.meta.stats.totalMobsKilled = (this.meta.stats.totalMobsKilled || 0) + this.runStats.mobsKilled;
     this.meta.stats.totalBlocksMined = (this.meta.stats.totalBlocksMined || 0) + this.runStats.blocksMined;
     this.saveSystem.saveMeta(this.meta);
+
+    // Update achievement-relevant run stats
+    this.runStats.totalDeaths = this.meta.stats.totalDeaths;
+    this.runStats.totalRuns = this.meta.stats.totalRuns;
+    this.runStats.totalShardsEarned = (this.meta.totalShardsEarned || 0) + totalShards;
+    this.meta.totalShardsEarned = this.runStats.totalShardsEarned;
+
+    // Final achievement check on death
+    this.achievements.checkAll(this.runStats);
 
     const elapsed = Math.floor((Date.now() - this.runStats.startTime) / 1000);
     const mins = Math.floor(elapsed / 60);
@@ -696,6 +743,8 @@ class Game {
             const names = loot.items.map(i => `${i.count}× ${this._getItemName(i.id)}`).join(', ');
             this.hud.showToast(`Chest opened: ${names}`);
             this.audio?.play?.('block_place');
+            // Achievement tracking
+            this.runStats.chestsOpened = (this.runStats.chestsOpened || 0) + 1;
           }
         } else {
           this.player.placeBlock();
@@ -704,6 +753,19 @@ class Game {
 
       // Particles
       this.particles?.update(scaledDt);
+
+      // Pickup manager (3D block drops)
+      if (this.pickupManager && this.player) {
+        const pickupCollected = this.pickupManager.update(
+          scaledDt,
+          this.player.position,
+          this.inventory,
+          (itemId, count) => { this.audio?.play?.('pickup'); }
+        );
+        if (pickupCollected.length > 0) {
+          this.audio?.play?.('pickup');
+        }
+      }
 
       // Minimap
       if (this.minimap?.visible) {
@@ -741,6 +803,16 @@ class Game {
 
       // Low health pulse
       this.hud.lowHealthPulse(this.player.health, this.player.maxHealth);
+
+      // Achievement checks
+      if (this.state === STATE.PLAYING) {
+        // Update survival time
+        this.runStats.survivalTime = (Date.now() - this.runStats.startTime) / 1000;
+        // Check armor set achievements
+        this._checkArmorSetAchievements();
+        // Run all achievement checks
+        this.achievements.checkAll(this.runStats);
+      }
 
       // Screen shake — use player's camera shake from combat
       const shakeI = this.player._cameraShakeIntensity || 0;
@@ -828,6 +900,21 @@ class Game {
   _getItemName(id) {
     const item = getItem(id);
     return item?.name || `Item #${id}`;
+  }
+
+  /**
+   * Check armor set achievements
+   */
+  _checkArmorSetAchievements() {
+    if (!this.inventory?.armor) return;
+    const armorIds = this.inventory.armor.map(a => a?.id).filter(Boolean);
+    if (armorIds.length !== 4) return;
+    // Iron set: 131-134
+    if (armorIds.every(id => id >= 131 && id <= 134)) this.runStats.fullIronArmor = true;
+    // Diamond set: 139-142
+    if (armorIds.every(id => id >= 139 && id <= 142)) this.runStats.fullDiamondArmor = true;
+    // Crystal set: 143-146
+    if (armorIds.every(id => id >= 143 && id <= 146)) this.runStats.fullCrystalArmor = true;
   }
 
   /**

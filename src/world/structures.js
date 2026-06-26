@@ -19,37 +19,37 @@
 const LOOT = {
   village: [
     { id: 151, count: 3 },   // Bread
-    { id: 206, count: 4 },   // Stick
-    { id: 200, count: 3 },   // Coal
-    { id: 100, count: 1 },   // Wood Sword
+    { id: 200, count: 4 },   // Coal
+    { id: 206, count: 6 },   // Stick
     { id: 150, count: 2 },   // Apple
+    { id: 127, count: 1 },   // Leather Helmet
+    { id: 100, count: 1 },   // Wood Sword
   ],
   dungeon: [
     { id: 201, count: 4 },   // Iron Ingot
     { id: 108, count: 1 },   // Iron Sword
     { id: 152, count: 3 },   // Steak
-    { id: 200, count: 5 },   // Coal
-    { id: 131, count: 1 },   // Iron Helmet
+    { id: 200, count: 6 },   // Coal
+    { id: 132, count: 1 },   // Iron Chestplate
+    { id: 230, count: 1 },   // Potion of Healing
     { id: 120, count: 1 },   // Bow
-    { id: 210, count: 3 },   // Flint
   ],
   temple: [
     { id: 202, count: 5 },   // Gold Ingot
     { id: 203, count: 2 },   // Diamond
     { id: 159, count: 1 },   // Golden Apple
     { id: 109, count: 1 },   // Iron Pickaxe
-    { id: 230, count: 3 },   // Potion of Healing
-    { id: 204, count: 2 },   // Crystal
-    { id: 216, count: 1 },   // Ender Pearl
+    { id: 230, count: 2 },   // Potion of Healing
+    { id: 116, count: 1 },   // Diamond Sword
+    { id: 204, count: 3 },   // Crystal
   ],
   portal: [
     { id: 204, count: 5 },   // Crystal
     { id: 203, count: 3 },   // Diamond
-    { id: 230, count: 4 },   // Potion of Healing
-    { id: 122, count: 1 },   // Crystal Sword
+    { id: 230, count: 3 },   // Potion of Healing
+    { id: 108, count: 1 },   // Iron Sword
     { id: 202, count: 6 },   // Gold Ingot
-    { id: 159, count: 2 },   // Golden Apple
-    { id: 218, count: 1 },   // Nether Star
+    { id: 232, count: 1 },   // Potion of Strength
   ],
 };
 
