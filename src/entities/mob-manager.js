@@ -691,29 +691,16 @@ export class MobManager {
     const parts = group.userData?.parts;
     if (!parts) return;
 
-    // Apply textured material to the body
-    const body = parts.body;
-    if (body && body.geometry && !body.material._special) {
-      const geo = body.geometry;
-      const uvs = geo.attributes.uv;
-      if (uvs) {
-        // BoxGeometry face order: +X(0), -X(1), +Y(2), -Y(3), +Z(4), -Z(5)
-        // Map to atlas faces: right(+X)=3, left(-X)=2, top(+Y)=4, bottom(-Y)=5, front(+Z)=0, back(-Z)=1
-        const faceOrder = [3, 2, 4, 5, 0, 1];
-        for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
-          const uv = getMobFaceUV(type, faceOrder[faceIdx]);
-          const v = faceIdx * 4;
-          uvs.setXY(v, uv.u0, uv.v0);
-          uvs.setXY(v + 1, uv.u1, uv.v0);
-          uvs.setXY(v + 2, uv.u1, uv.v1);
-          uvs.setXY(v + 3, uv.u0, uv.v1);
-        }
-        uvs.needsUpdate = true;
-        body.material = new THREE.MeshLambertMaterial({ map: this._mobTextureAtlas });
-      }
-    }
+    // Only apply atlas textures to mobs with proper dedicated textures
+    // Humanoid mobs (zombie, skeleton, enderman, witch, etc.) look better with colored materials
+    const ATLAS_TYPES = new Set([
+      'chicken', 'spider', 'cave_spider', 'spider_queen',
+      'cow', 'pig', 'sheep', 'slime',
+    ]);
+    if (!ATLAS_TYPES.has(type)) return;
 
-    // Apply textured material to the head
+    // Apply textured material to the body
+    // Body/arms/legs keep their original MOB_COLORS.
     const head = parts.head;
     if (head && head.geometry && !head.material._special) {
       const geo = head.geometry;

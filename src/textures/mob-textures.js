@@ -35,8 +35,8 @@ const MOB_ATLAS_ROWS = {
   necromancer:  15,
   crystal_golem:16,
   void_wyrm:    17,
-  cave_spider:  18,
-  corrupted_champion: 19,
+  cave_spider:  2,  // reuses spider
+  corrupted_champion: 0,  // reuses zombie
   villager:     5,  // reuses cow row as fallback
   fish:         4,  // reuses enderman row as fallback
 };
