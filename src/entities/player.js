@@ -82,6 +82,9 @@ export class Player {
     // Fall tracking for fall damage
     this._fallStartY = -1;
 
+    // Spawn protection (3 seconds of invulnerability after spawning)
+    this._spawnProtection = 3;
+
     // Landing impact (camera dip)
     this._landingImpact = 0;
 
@@ -96,6 +99,10 @@ export class Player {
     // Block crack overlay
     this._crackOverlay = null;
     this._crackLevel = 0;
+    // Pre-generated crack overlays for each stage (0-10)
+    this._crackOverlays = [];
+    this._breakParticles = [];
+    this._createCrackStages();
 
     // Hunger / regen timers
     this._hungerTimer = 0;
@@ -160,6 +167,9 @@ export class Player {
     dt = Math.min(dt, 0.1);
 
     if (this._placeCooldown > 0) this._placeCooldown -= dt;
+
+    // Spawn protection countdown
+    if (this._spawnProtection > 0) this._spawnProtection -= dt;
 
     // Mouse look
     this._handleMouseLook(input);
@@ -796,6 +806,9 @@ export class Player {
    * @returns {number} final damage applied
    */
   takeDamage(amount, source) {
+    // Spawn protection: ignore all damage for the first 3 seconds
+    if (this._spawnProtection > 0) return 0;
+
     const defense = this.inventory.getTotalDefense();
     const reduction = defense / (defense + 10);
     const finalDmg = Math.max(1, Math.floor(amount * (1 - reduction)));
