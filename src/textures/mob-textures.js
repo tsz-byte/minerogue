@@ -554,7 +554,37 @@ export function createMobTextureAtlas() {
 
   _mobAtlasCanvas = canvas;
   _mobAtlasTexture = texture;
+
+  // Load AI-generated face images and overlay them on front face (column 0)
+  _loadFaceOverlays(canvas, ctx, texture);
+
   return texture;
+}
+
+/**
+ * Load AI-generated mob face images and draw them onto the atlas front face positions.
+ */
+function _loadFaceOverlays(canvas, ctx, texture) {
+  const faceMap = {
+    zombie: 0, skeleton: 1, spider: 2, creeper: 3, enderman: 4,
+    cow: 5, pig: 6, chicken: 7, sheep: 8, witch: 9,
+    husk: 10, phantom: 11, slime: 12,
+    cave_spider: 18, ghast: -1,
+  };
+
+  for (const [name, row] of Object.entries(faceMap)) {
+    if (row < 0) continue;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // Draw face onto column 0 of this mob's row in the atlas
+      ctx.drawImage(img, 0, row * TILE, TILE, TILE);
+      texture.needsUpdate = true;
+    };
+    img.onerror = () => { /* fallback: keep procedural face */ };
+    // Vite serves from /src or /assets — use relative path
+    img.src = new URL(`../../assets/textures/mobs/${name}.png`, import.meta.url).href;
+  }
 }
 
 /**
