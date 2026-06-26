@@ -174,13 +174,13 @@ export class RoguelikeSystem {
     const s = stats ?? this.stats;
     return Math.floor(
       (s.mobsKilled ?? 0) * 1 +
-      (s.blocksBroken ?? 0) * 0.1 +
+      (s.blocksMined ?? s.blocksBroken ?? 0) * 0.1 +
       (s.bossesKilled ?? 0) * 50 +
       (s.structuresFound ?? 0) * 10 +
-      (s.itemsCrafted ?? 0) * 0.5 +
+      (s.craftsDone ?? s.itemsCrafted ?? 0) * 0.5 +
       (s.distanceTraveled ?? 0) * 0.01 +
-      (s.shrinesActivated ?? 0) * 5 +
-      (s.depthReached ?? 0) * 2
+      (s.shrinesUsed ?? s.shrinesActivated ?? 0) * 5 +
+      (s.depth ?? s.depthReached ?? 0) * 2
     );
   }
 

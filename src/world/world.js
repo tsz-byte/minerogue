@@ -27,12 +27,14 @@ export class World {
    * Get block ID at world coordinates. Returns 0 (air) for unloaded chunks.
    */
   getBlock(x, y, z) {
+    // Use proper floor division (Math.floor handles negatives correctly)
     const cx = Math.floor(x / CHUNK_SIZE);
     const cy = Math.floor(y / CHUNK_SIZE);
     const cz = Math.floor(z / CHUNK_SIZE);
     const chunk = this.chunks.get(this.chunkKey(cx, cy, cz));
     if (!chunk) return 0;
 
+    // Proper modulo for negative coordinates
     const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
     const ly = ((y % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
     const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;

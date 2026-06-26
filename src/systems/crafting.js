@@ -10,6 +10,14 @@ function getBlockByName(name) {
   return null;
 }
 
+function resolveEntryNameById(id) {
+  return getItem(id)?.name ?? getBlock(id)?.name ?? null;
+}
+
+function resolveIngredientIdByName(name) {
+  return getItemByName(name)?.id ?? getBlockByName(name)?.id ?? null;
+}
+
 export class CraftingSystem {
   constructor(inventory) {
     this.inventory = inventory;
@@ -23,11 +31,7 @@ export class CraftingSystem {
    */
   checkRecipe(grid, gridCols = 2) {
     // Convert grid from {id, count} to name strings for recipe matching
-    const nameGrid = grid.map(slot => {
-      if (!slot) return null;
-      const item = getItem(slot.id);
-      return item?.name ?? null;
-    });
+    const nameGrid = grid.map(slot => slot ? resolveEntryNameById(slot.id) : null);
 
     const recipe = findRecipe(nameGrid);
     if (!recipe) return null;
@@ -74,10 +78,8 @@ export class CraftingSystem {
     for (let i = 0; i < this.inventory.slots.length; i++) {
       const slot = this.inventory.slots[i];
       if (slot) {
-        const item = getItem(slot.id);
-        if (item) {
-          counts.set(item.name, (counts.get(item.name) ?? 0) + slot.count);
-        }
+        const entryName = resolveEntryNameById(slot.id);
+        if (entryName) counts.set(entryName, (counts.get(entryName) ?? 0) + slot.count);
       }
     }
 
@@ -101,8 +103,8 @@ export class CraftingSystem {
           available.push({
             result: { id: resultId, count: recipe.result.count },
             ingredients: [...needed.entries()].map(([name, count]) => {
-              const item = getItemByName(name);
-              return { id: item?.id, name, count };
+              const id = resolveIngredientIdByName(name);
+              return { id, name, count };
             }).filter(x => x.id != null),
           });
         }

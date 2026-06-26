@@ -5,7 +5,7 @@
  */
 import { getItemIcon } from '../textures.js';
 import { getItem, getItemByName } from '../data/items.js';
-import { getBlockByName } from '../data/blocks.js';
+import { getBlock, getBlockByName } from '../data/blocks.js';
 import { CRAFTING_RECIPES, SMELTING_RECIPES } from '../data/recipes.js';
 
 // ─── Resolve a recipe result name to a numeric item/block ID ───
@@ -15,6 +15,14 @@ function resolveResultId(name) {
   const block = getBlockByName(name);
   if (block) return block.id;
   return null;
+}
+
+function resolveEntryNameById(id) {
+  return getItem(id)?.name ?? getBlock(id)?.name ?? null;
+}
+
+function resolveIngredientId(name) {
+  return getItemByName(name)?.id ?? getBlockByName(name)?.id ?? null;
 }
 
 export class MenuManager {
@@ -331,11 +339,7 @@ export class MenuManager {
       grid[2], grid[3], null,
       null, null, null,
     ];
-    const nameGrid = grid3x3.map(slot => {
-      if (!slot) return null;
-      const item = getItem(slot.id);
-      return item?.name ?? null;
-    });
+    const nameGrid = grid3x3.map(slot => slot ? resolveEntryNameById(slot.id) : null);
     for (const recipe of CRAFTING_RECIPES) {
       if (this._matchRecipe(nameGrid, recipe)) {
         const numericId = resolveResultId(recipe.result.id);
@@ -486,11 +490,7 @@ export class MenuManager {
   _checkCraft3x3() {
     if (!this._inventory?._craftGrid3x3) return null;
     const grid = this._inventory._craftGrid3x3;
-    const nameGrid = grid.map(slot => {
-      if (!slot) return null;
-      const item = getItem(slot.id);
-      return item?.name ?? null;
-    });
+    const nameGrid = grid.map(slot => slot ? resolveEntryNameById(slot.id) : null);
     for (const recipe of CRAFTING_RECIPES) {
       if (this._matchRecipe(nameGrid, recipe)) {
         const numericId = resolveResultId(recipe.result.id);
@@ -518,8 +518,8 @@ export class MenuManager {
     for (let i = 0; i < inventory.slots.length; i++) {
       const slot = inventory.slots[i];
       if (slot) {
-        const item = getItem(slot.id);
-        if (item) counts.set(item.name, (counts.get(item.name) ?? 0) + slot.count);
+        const entryName = resolveEntryNameById(slot.id);
+        if (entryName) counts.set(entryName, (counts.get(entryName) ?? 0) + slot.count);
       }
     }
 
@@ -578,14 +578,14 @@ export class MenuManager {
 
     // Check
     for (const [name, count] of needed) {
-      const item = getItemByName(name);
-      if (!item || !inventory.hasItem(item.id, count)) return;
+      const ingredientId = resolveIngredientId(name);
+      if (ingredientId == null || !inventory.hasItem(ingredientId, count)) return;
     }
 
     // Consume
     for (const [name, count] of needed) {
-      const item = getItemByName(name);
-      if (item) inventory.consumeItem(item.id, count);
+      const ingredientId = resolveIngredientId(name);
+      if (ingredientId != null) inventory.consumeItem(ingredientId, count);
     }
 
     // Add result

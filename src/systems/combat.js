@@ -72,6 +72,11 @@ export class CombatSystem {
     const baseDmg = toolData?.damage ?? 1;
     const toolType = toolData?.type ?? 'hand';
 
+    // Apply roguelike modifiers
+    const mods = this.player._roguelikeModifiers || {};
+    const damageMult = (mods.playerDamageMultiplier ?? 1);
+    const critBonus = (mods.critChanceBonus ?? 0);
+
     const cooldowns = { sword: 0.6, axe: 0.8, pickaxe: 1.0, shovel: 1.0, hand: 1.0 };
     this._meleeCooldown = cooldowns[toolType] ?? 1.0;
 
@@ -84,11 +89,11 @@ export class CombatSystem {
     const mob = this.mobManager.checkMobHit(origin, direction, reach, cone);
 
     if (mob) {
-      const isCrit = Math.random() < 0.10 + (this.player.velocity.y < -0.05 ? 0.15 : 0);
+      const isCrit = Math.random() < 0.10 + critBonus + (this.player.velocity.y < -0.05 ? 0.15 : 0);
       const critMult = isCrit ? 2.0 : 1.0;
       const defense = 0;
       const armorRed = defense / (defense + 10);
-      const finalDmg = Math.max(1, Math.floor(baseDmg * critMult * (1 - armorRed)));
+      const finalDmg = Math.max(1, Math.floor(baseDmg * damageMult * critMult * (1 - armorRed)));
 
       const kbDir = mob.position.clone().sub(this.player.position);
       kbDir.y = 0; kbDir.normalize();
@@ -182,7 +187,7 @@ export class CombatSystem {
         continue;
       }
 
-      arrow.velocity.y -= 0.005 * (dt * 60); // gravity scaled to dt
+      arrow.velocity.y -= 9.8 * dt; // proper dt-based gravity
       arrow.mesh.position.add(arrow.velocity.clone().multiplyScalar(dt * 60));
       arrow.mesh.lookAt(arrow.mesh.position.clone().add(arrow.velocity));
 
@@ -228,7 +233,11 @@ export class CombatSystem {
   mobAttackPlayer(mob) {
     if (this.player.dead) return;
     const mobDmg = mob._def?.damage ?? mob.damage ?? 2;
-    const finalDmg = this.player.takeDamage(mobDmg);
+    const mods = this.player._roguelikeModifiers || {};
+    const mobDmgMult = (mods.mobDamageMultiplier ?? 1);
+    const playerDmgTakenMult = (mods.playerDamageTakenMultiplier ?? 1);
+    const effectiveMobDmg = Math.floor(mobDmg * mobDmgMult * playerDmgTakenMult);
+    const finalDmg = this.player.takeDamage(effectiveMobDmg);
     this._redVignetteOpacity = 0.6;
     this.player.addCameraShake(0.25);
     const hitPos = this.player.getEyePosition();
@@ -244,7 +253,24 @@ export class CombatSystem {
       const atkRange = mob.attackRange ?? 1.5;
       if (mob.position.distanceTo(this.player.position) <= atkRange) {
         const isExplosive = mob._def?.special === 'explosive';
-        if (isExplosive) continue;
+        if (isExplosive) {
+          // Creeper explosion: deal AoE damage and remove the mob
+          const explosionDmg = mob._def?.damage ?? 8;
+          const mods = this.player._roguelikeModifiers || {};
+          const playerDmgTakenMult = (mods.playerDamageTakenMultiplier ?? 1);
+          const effectiveDmg = Math.floor(explosionDmg * playerDmgTakenMult);
+          this.player.takeDamage(effectiveDmg);
+          this._redVignetteOpacity = 1.0;
+          this.player.addCameraShake(0.6);
+          const hitPos = this.player.getEyePosition();
+          this.particles.emit(hitPos, { count: 20, color: '#ff6600', spread: 0.5, life: 0.6, gravity: -3 });
+          this.particles.emit(hitPos, { count: 15, color: '#ffff00', spread: 0.8, life: 0.4, gravity: -2 });
+          this.damageNumbers.spawn(effectiveDmg, false, true, hitPos, this.camera);
+          this.audio?.play?.('explosion');
+          // Kill the creeper
+          this.mobManager.killMob(mob);
+          continue;
+        }
         this.mobAttackPlayer(mob);
       }
     }

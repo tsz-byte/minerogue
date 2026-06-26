@@ -41,12 +41,15 @@ export class DungeonGenerator {
     const numFloors = 3 + Math.floor(Math.random() * 3); // 3-5 floors
     const floors = [];
 
+    // Generate starting at terrain height
+    const terrainY = this.world?.generator?.getHeight?.(baseX, baseZ) ?? 64;
+    const startY = Math.max(terrainY + 1, 10);
     for (let f = 0; f < numFloors; f++) {
       const floor = this.generateFloor(f);
       floors.push(floor);
 
-      // Place floor into world
-      const yBase = f * this.floorHeight;
+      // Place floor into world, starting from terrain
+      const yBase = startY + f * this.floorHeight;
       this._placeFloor(baseX, yBase, baseZ, floor, f, numFloors);
     }
 

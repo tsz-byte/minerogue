@@ -98,6 +98,7 @@ export class MobManager {
     if (this._spawnTimer >= SPAWN_CHECK_INTERVAL) {
       this._spawnTimer -= SPAWN_CHECK_INTERVAL;
       this._trySpawn();
+      this.checkSpawnerBlocks();
     }
 
     // Update each mob
@@ -120,6 +121,17 @@ export class MobManager {
 
       // Animation
       this._updateAnimation(mob, dt);
+
+      // Jump cooldown
+      if (mob._jumpCooldown > 0) mob._jumpCooldown -= dt;
+
+      // Health bar fade
+      if (mob._hpBar) {
+        mob._hpBar.showTimer -= dt;
+        if (mob._hpBar.showTimer <= 0) {
+          mob._hpBar.sprite.visible = false;
+        }
+      }
 
       // Flash timer
       if (mob.flashTimer > 0) {
@@ -176,6 +188,7 @@ export class MobManager {
       _savedColors: null,
       _parts: mesh.userData.parts || null,
       _def: def,
+      _jumpCooldown: 0,
     };
 
     this.mobs.push(mob);
@@ -253,8 +266,43 @@ export class MobManager {
       mob.state = 'chase';
     }
 
+    // Update health bar
+    this._updateMobHealthBar(mob);
+
     // Check death
     if (mob.hp <= 0) this.killMob(mob);
+  }
+
+  _updateMobHealthBar(mob) {
+    if (!mob._hpBar) {
+      // Create health bar sprite
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 8;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#333';
+      ctx.fillRect(0, 0, 64, 8);
+      ctx.fillStyle = '#e22';
+      ctx.fillRect(1, 1, 62, 6);
+      const tex = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(1.0, 0.15, 1);
+      sprite.position.set(0, 2.2, 0);
+      mob.mesh.add(sprite);
+      mob._hpBar = { sprite, canvas, ctx, tex, showTimer: 0 };
+    }
+
+    // Update bar fill
+    const bar = mob._hpBar;
+    const pct = Math.max(0, mob.hp / mob.maxHp);
+    bar.ctx.fillStyle = '#333';
+    bar.ctx.fillRect(0, 0, 64, 8);
+    bar.ctx.fillStyle = pct > 0.5 ? '#2e2' : (pct > 0.25 ? '#ea2' : '#e22');
+    bar.ctx.fillRect(1, 1, Math.floor(62 * pct), 6);
+    bar.tex.needsUpdate = true;
+    bar.showTimer = 3; // show for 3 seconds
+    bar.sprite.visible = true;
   }
 
   /**
@@ -385,6 +433,14 @@ export class MobManager {
 
   _updateHostileAI(mob, dt, distToPlayer) {
     const def = mob._def;
+    const isFlying = def?.behavior === 'fly';
+
+    // Flying mobs always hover
+    if (isFlying) {
+      const hoverY = this.player.position.y + 2 + Math.sin(this._time * 1.5 + mob._animTime) * 1.0;
+      mob.velocity.y += (hoverY - mob.position.y) * 0.03;
+      mob.velocity.y *= 0.92;
+    }
 
     switch (mob.state) {
       case 'idle':
@@ -463,9 +519,17 @@ export class MobManager {
   // ===== PHYSICS =====
 
   _updatePhysics(mob, dt) {
+    const isFlying = mob._def?.behavior === 'fly';
+
     // dt-based physics (matching player)
-    mob.velocity.y += MOB_GRAVITY * dt;
-    if (mob.velocity.y < MOB_TERMINAL) mob.velocity.y = MOB_TERMINAL;
+    if (!isFlying) {
+      mob.velocity.y += MOB_GRAVITY * dt;
+      if (mob.velocity.y < MOB_TERMINAL) mob.velocity.y = MOB_TERMINAL;
+    } else {
+      // Flying mobs: gentle gravity but strong upward buoyancy
+      mob.velocity.y += MOB_GRAVITY * dt * 0.1;
+      mob.velocity.y *= Math.exp(-3 * dt); // dampen vertical velocity
+    }
 
     const frictionMul = Math.exp(-(mob.knockbackTimer > 0 ? 3 : 6) * dt);
     mob.velocity.x *= frictionMul;
@@ -478,8 +542,9 @@ export class MobManager {
     if (this._checkMobCollision(newPos)) {
       const jumpTest = newPos.clone();
       jumpTest.y += 1;
-      if (!this._checkMobCollision(jumpTest) && Math.abs(mob.velocity.y) < 0.5) {
+      if (!this._checkMobCollision(jumpTest) && Math.abs(mob.velocity.y) < 0.5 && (mob._jumpCooldown ?? 0) <= 0) {
         mob.velocity.y = MOB_JUMP;
+        mob._jumpCooldown = 0.8;
       }
       newPos.x = mob.position.x;
       mob.velocity.x = 0;
@@ -490,8 +555,9 @@ export class MobManager {
     if (this._checkMobCollision(newPos)) {
       const jumpTest = newPos.clone();
       jumpTest.y += 1;
-      if (!this._checkMobCollision(jumpTest) && Math.abs(mob.velocity.y) < 0.5) {
+      if (!this._checkMobCollision(jumpTest) && Math.abs(mob.velocity.y) < 0.5 && (mob._jumpCooldown ?? 0) <= 0) {
         mob.velocity.y = MOB_JUMP;
+        mob._jumpCooldown = 0.8;
       }
       newPos.z = mob.position.z;
       mob.velocity.z = 0;
@@ -835,12 +901,56 @@ export class MobManager {
     }
   }
 
+  // ===== BOSS SPAWNING =====
+
+  /**
+   * Spawn a boss mob at given position. Used by dungeon spawners.
+   */
+  spawnBoss(type, x, y, z) {
+    const def = getMobDef(type);
+    if (!def || !def.boss) return null;
+    return this.spawnMob(type, x, y, z);
+  }
+
+  /**
+   * Called periodically to spawn bosses near mob spawner blocks the player is close to.
+   */
+  checkSpawnerBlocks() {
+    const px = Math.floor(this.player.position.x);
+    const py = Math.floor(this.player.position.y);
+    const pz = Math.floor(this.player.position.z);
+    const range = 12;
+
+    for (let dx = -range; dx <= range; dx++) {
+      for (let dy = -range; dy <= range; dy++) {
+        for (let dz = -range; dz <= range; dz++) {
+          const bx = px + dx, by = py + dy, bz = pz + dz;
+          const blockId = this.world.getBlock(bx, by, bz);
+          if (blockId === 60) { // MobSpawner block
+            // Only spawn if no boss already nearby
+            const hasBoss = this.mobs.some(m => m._def?.boss && m.position.distanceTo(new THREE.Vector3(bx + 0.5, by + 1, bz + 0.5)) < 16);
+            if (!hasBoss && Math.random() < 0.01) {
+              const bossTypes = ['giant_zombie', 'spider_queen', 'necromancer', 'corrupted_champion'];
+              const type = bossTypes[Math.floor(Math.random() * bossTypes.length)];
+              this.spawnBoss(type, bx + 0.5, by + 1, bz + 0.5);
+              this.audio?.play?.('mob_death'); // reuse as alert sound
+            }
+          }
+        }
+      }
+    }
+  }
+
   // ===== DROPS =====
 
   _spawnMobDrops(mob, def) {
+    const dropMult = this.player._roguelikeModifiers?.mobDropMultiplier ?? 1;
+    const rareMult = this.player._roguelikeModifiers?.rareDropChance ?? 1;
     for (const drop of def.drops) {
-      if (Math.random() < (drop.chance ?? 1)) {
-        const count = (drop.min ?? 0) + Math.floor(Math.random() * ((drop.max ?? 0) - (drop.min ?? 0) + 1));
+      const effectiveChance = Math.min(1, (drop.chance ?? 1) * rareMult);
+      if (Math.random() < effectiveChance) {
+        const baseCount = (drop.min ?? 0) + Math.floor(Math.random() * ((drop.max ?? 0) - (drop.min ?? 0) + 1));
+        const count = Math.floor(baseCount * dropMult);
         const itemDef = getItemByName(drop.item);
         if (!itemDef) continue;
 

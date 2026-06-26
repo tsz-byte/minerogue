@@ -1,5 +1,5 @@
 // Inventory system - 36 main slots + 4 armor slots (expandable)
-import { ITEM_MAP, getItem } from '../../data/items.js';
+import { ITEM_MAP, getItem } from '../data/items.js';
 
 export class InventorySystem {
   constructor(owner) {

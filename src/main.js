@@ -201,13 +201,15 @@ class Game {
     const generator = new WorldGenerator(runSeed);
     this.roguelike.applyModifiers(generator, modifiers);
 
+    this._clearScene();
     const scene = this.renderer.getScene();
-    // Clear old scene
-    while (scene.children.length > 0) scene.remove(scene.children[0]);
 
     const texAtlas = createTextureAtlas();
     this.world = new World(generator, scene, texAtlas);
     this.dayNight = new DayNightCycle(scene, this.renderer.getRenderer());
+    if (generator.eternalNight) {
+      this.dayNight.setPermanentNight?.(true) || this.dayNight.setPermanentDay?.(false);
+    }
     this.dungeon = new DungeonGenerator(this.world);
 
     // Setup player
@@ -236,6 +238,23 @@ class Game {
     // Mob system
     this.mobManager = new MobManager(this.world, scene, this.player, this.audio);
     this.combat = new CombatSystem(this.player, this.mobManager, this.particles, this.audio, camera);
+
+    // Pass roguelike modifiers to player for combat system access
+    this.player._roguelikeModifiers = {};
+    for (const mod of modifiers) {
+      Object.assign(this.player._roguelikeModifiers, mod.effect);
+    }
+
+    // Apply mob health scaling from modifiers
+    const mobHealthMult = this.player._roguelikeModifiers?.mobHealthMultiplier ?? 1;
+    if (mobHealthMult !== 1) {
+      const origSpawn = this.mobManager.spawnMob.bind(this.mobManager);
+      this.mobManager.spawnMob = (type, x, y, z) => {
+        const mob = origSpawn(type, x, y, z);
+        if (mob) { mob.hp = Math.floor(mob.hp * mobHealthMult); mob.maxHp = mob.hp; }
+        return mob;
+      };
+    }
 
     // Minimap
     this.minimap = new Minimap(this.world);
@@ -278,6 +297,10 @@ class Game {
     this.dungeon.generate(192, 64);
 
     // Place structures throughout the world
+    this._generateStructures(seed);
+  }
+
+  async _generateStructures(seed) {
     const rng = this._seededRng(seed + 7777);
     const structures = [
       { type: 'village_ruins', count: 4 + Math.floor(rng() * 3) },
@@ -286,8 +309,8 @@ class Game {
       { type: 'portal_room', count: 2 },
     ];
 
-    // Import and use structure generator
-    import('./world/structures.js').then(({ generateStructure }) => {
+    try {
+      const { generateStructure } = await import('./world/structures.js');
       const worldCenter = 128;
       for (const struct of structures) {
         for (let i = 0; i < struct.count; i++) {
@@ -298,10 +321,14 @@ class Game {
           const y = this.world?.generator?.getHeight(x, z) || 64;
           try {
             generateStructure(struct.type, x, y + 1, z, this.world);
-          } catch(e) { /* structure may overlap, that's ok */ }
+          } catch(e) { /* structure may overlap */ }
         }
       }
-    });
+      // Mark all chunks dirty so structures render
+      for (const [, chunk] of this.world?.chunks ?? []) {
+        chunk.dirty = true;
+      }
+    } catch(e) { console.warn('Structure generation failed:', e); }
   }
 
   _seededRng(seed) {
@@ -315,8 +342,7 @@ class Game {
   }
 
   enterHomeWorld() {
-    const scene = this.renderer.getScene();
-    while (scene.children.length > 0) scene.remove(scene.children[0]);
+    this._clearScene();
 
     const texAtlas = createTextureAtlas();
     const homeData = this.homeWorld;
@@ -448,7 +474,22 @@ class Game {
       this.world.dispose();
       this.world = null;
     }
+    this._clearScene();
+  }
+
+  _clearScene() {
     const scene = this.renderer.getScene();
+    scene.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+        } else {
+          if (obj.material.map) obj.material.map.dispose();
+          obj.material.dispose();
+        }
+      }
+    });
     while (scene.children.length > 0) scene.remove(scene.children[0]);
   }
 
@@ -456,6 +497,22 @@ class Game {
     this.state = STATE.PLAYING;
     this.menus.hidePause();
     this.input.requestPointerLock();
+  }
+
+  closeActiveInterface() {
+    if (this.state === STATE.INVENTORY) {
+      this.menus.hideInventory();
+    } else if (this.state === STATE.CRAFTING_TABLE) {
+      this.menus.hideCraftingTable();
+    } else if (this.state === STATE.FURNACE) {
+      this.menus.hideFurnace?.();
+    } else {
+      return false;
+    }
+
+    this.state = this.world?.isHome ? STATE.HOME : STATE.PLAYING;
+    this.input.requestPointerLock();
+    return true;
   }
 
   handleInput(dt) {
@@ -478,25 +535,34 @@ class Game {
         this.unpause();
         return;
       } else if (this.state === STATE.INVENTORY) {
-        this.state = STATE.PLAYING;
-        this.menus.hideInventory();
-        this.input.requestPointerLock();
+        this.closeActiveInterface();
         return;
       } else if (this.state === STATE.CRAFTING_TABLE) {
-        this.state = STATE.PLAYING;
-        this.menus.hideCraftingTable();
-        this.input.requestPointerLock();
+        this.closeActiveInterface();
         return;
       } else if (this.state === STATE.FURNACE) {
-        this.state = STATE.PLAYING;
-        this.menus.hideFurnace?.();
-        this.input.requestPointerLock();
+        this.closeActiveInterface();
         return;
       } else if (this.state === STATE.SHOP) {
         this.menus.hideShop();
         this.state = STATE.MENU;
         return;
       }
+    }
+
+    if (this.state === STATE.INVENTORY && (input.isKeyDown('KeyE') || input.isKeyDown('KeyC'))) {
+      input.keys.delete('KeyE');
+      input.keys.delete('KeyC');
+      this.closeActiveInterface();
+      return;
+    }
+
+    if ((this.state === STATE.CRAFTING_TABLE || this.state === STATE.FURNACE) &&
+        (input.isKeyDown('KeyE') || input.isKeyDown('KeyC'))) {
+      input.keys.delete('KeyE');
+      input.keys.delete('KeyC');
+      this.closeActiveInterface();
+      return;
     }
 
     if (this.state !== STATE.PLAYING && this.state !== STATE.HOME) return;
@@ -659,14 +725,15 @@ class Game {
       // Low health pulse
       this.hud.lowHealthPulse(this.player.health, this.player.maxHealth);
 
-      // Screen shake decay
-      if (this.shakeIntensity > 0.01) {
-        this.shakeIntensity *= 0.9;
+      // Screen shake — use player's camera shake from combat
+      const shakeI = this.player._cameraShakeIntensity || 0;
+      if (shakeI > 0.001) {
+        this.player._cameraShakeIntensity *= 0.9;
         const cam = this.renderer.getCamera();
-        cam.position.x += (Math.random() - 0.5) * this.shakeIntensity;
-        cam.position.y += (Math.random() - 0.5) * this.shakeIntensity;
-      } else {
-        this.shakeIntensity = 0;
+        cam.position.x += (Math.random() - 0.5) * shakeI;
+        cam.position.y += (Math.random() - 0.5) * shakeI;
+      } else if (this.player._cameraShakeIntensity) {
+        this.player._cameraShakeIntensity = 0;
       }
 
       // Check death

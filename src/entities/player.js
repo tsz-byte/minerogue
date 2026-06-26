@@ -413,7 +413,8 @@ export class Player {
         }
       }
 
-      const hardness = blockDef.hardness;
+      const hardnessMod = this._roguelikeModifiers?.blockHardnessMultiplier ?? 1;
+      const hardness = blockDef.hardness * hardnessMod;
 
       // Hardness 0 = instant break
       if (hardness <= 0) {
@@ -492,6 +493,21 @@ export class Player {
           if (remaining > 0) {
             this._spawnDroppedItem(blockId, pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
           }
+        }
+      }
+    }
+
+    // Tool durability
+    const heldItem = this.inventory.getSlot(this.selectedSlot);
+    if (heldItem) {
+      const heldDef = getItem(heldItem.id);
+      if (heldDef && heldDef.durability) {
+        const durMult = this._roguelikeModifiers?.toolDurabilityMultiplier ?? 1;
+        heldItem._durability = (heldItem._durability ?? heldDef.durability) - durMult;
+        if (heldItem._durability <= 0) {
+          // Tool broke!
+          this.inventory.setSlot(this.selectedSlot, null);
+          this.audio?.play?.('block_break');
         }
       }
     }
@@ -786,7 +802,9 @@ export class Player {
    * Heal the player, capped at maxHealth.
    */
   heal(amount) {
-    this.health = Math.min(this.maxHealth, this.health + amount);
+    const healingReduction = this._roguelikeModifiers?.healingReduction ?? 1;
+    const finalAmount = amount * healingReduction;
+    this.health = Math.min(this.maxHealth, this.health + finalAmount);
   }
 
   // ===== EATING =====
@@ -800,10 +818,33 @@ export class Player {
     if (!item) return false;
 
     const itemDef = getItem(item.id);
-    if (!itemDef || !isFood(itemDef.type)) return false;
+    if (!itemDef) return false;
+
+    // Handle potions
+    if (itemDef.type === 'potion') {
+      this.inventory.removeItem(this.selectedSlot, 1);
+      this.audio?.play?.('eat');
+
+      // Apply potion effects
+      if (itemDef.effects) {
+        for (const effect of itemDef.effects) {
+          if (effect.type === 'instant_health') {
+            this.heal((effect.power || 1) * 4);
+          } else {
+            this._pendingEffects = this._pendingEffects || [];
+            this._pendingEffects.push({ ...effect });
+          }
+        }
+      }
+      return true;
+    }
+
+    // Handle food
+    if (!isFood(itemDef.type)) return false;
     if (this.hunger >= this._maxHunger) return false;
 
-    this.hunger = Math.min(this._maxHunger, this.hunger + (itemDef.hunger || 4));
+    const healMult = this._roguelikeModifiers?.foodHealMultiplier ?? 1;
+    this.hunger = Math.min(this._maxHunger, this.hunger + Math.floor((itemDef.hunger || 4) * healMult));
     this.inventory.removeItem(this.selectedSlot, 1);
     this.audio?.play?.('eat');
 
