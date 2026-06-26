@@ -7,42 +7,49 @@
  *          24=Bricks, 27=Obsidian, 28=Glowstone, 31=Chest, 34=Sandstone,
  *          59=Shrine Block, 60=Mob Spawner, 61=Portal Frame, 67=Void Stone
  */
-
 // ─── Loot Tables ─────────────────────────────────────────────────────
-// Item IDs: 100=Stick, 101=Coal, 102=Iron Ingot, 103=Gold Ingot,
-//           104=Diamond, 105=Crystal, 110=Wooden Sword, 111=Stone Sword,
-//           112=Iron Sword, 113=Stone Pickaxe, 114=Iron Pickaxe,
-//           120=Leather Helmet, 121=Leather Chestplate,
-//           150=Apple, 151=Bread, 152=Cooked Pork, 153=Golden Apple,
-//           230=Potion of Healing
+// Correct IDs from items.js: 200=Coal, 201=Iron Ingot, 202=Gold Ingot,
+//   203=Diamond, 204=Crystal, 206=Stick, 100=Wood Sword, 104=Stone Sword,
+//   108=Iron Sword, 105=Stone Pickaxe, 109=Iron Pickaxe, 127=Leather Helmet,
+//   128=Leather Chestplate, 131=Iron Helmet, 150=Apple, 151=Bread,
+//   152=Steak, 153=Cooked Porkchop, 159=Golden Apple, 230=Potion of Healing,
+//   120=Bow, 121=Shield, 122=Crystal Sword, 214=Leather, 210=Flint,
+//   209=Feather, 207=String, 208=Bone, 215=Gunpowder, 216=Ender Pearl
 
 const LOOT = {
   village: [
-    { id: 151, count: 3 }, // Bread
-    { id: 100, count: 4 }, // Stick
-    { id: 101, count: 2 }, // Coal
-    { id: 110, count: 1 }, // Wooden Sword
+    { id: 151, count: 3 },   // Bread
+    { id: 206, count: 4 },   // Stick
+    { id: 200, count: 3 },   // Coal
+    { id: 100, count: 1 },   // Wood Sword
+    { id: 150, count: 2 },   // Apple
   ],
   dungeon: [
-    { id: 102, count: 3 }, // Iron Ingot
-    { id: 112, count: 1 }, // Iron Sword
-    { id: 152, count: 2 }, // Cooked Pork
-    { id: 101, count: 5 }, // Coal
-    { id: 120, count: 1 }, // Leather Helmet
+    { id: 201, count: 4 },   // Iron Ingot
+    { id: 108, count: 1 },   // Iron Sword
+    { id: 152, count: 3 },   // Steak
+    { id: 200, count: 5 },   // Coal
+    { id: 131, count: 1 },   // Iron Helmet
+    { id: 120, count: 1 },   // Bow
+    { id: 210, count: 3 },   // Flint
   ],
   temple: [
-    { id: 103, count: 4 }, // Gold Ingot
-    { id: 104, count: 1 }, // Diamond
-    { id: 153, count: 1 }, // Golden Apple
-    { id: 114, count: 1 }, // Iron Pickaxe
-    { id: 230, count: 2 }, // Potion of Healing
+    { id: 202, count: 5 },   // Gold Ingot
+    { id: 203, count: 2 },   // Diamond
+    { id: 159, count: 1 },   // Golden Apple
+    { id: 109, count: 1 },   // Iron Pickaxe
+    { id: 230, count: 3 },   // Potion of Healing
+    { id: 204, count: 2 },   // Crystal
+    { id: 216, count: 1 },   // Ender Pearl
   ],
   portal: [
-    { id: 105, count: 3 }, // Crystal
-    { id: 104, count: 2 }, // Diamond
-    { id: 230, count: 3 }, // Potion of Healing
-    { id: 112, count: 1 }, // Iron Sword
-    { id: 103, count: 5 }, // Gold Ingot
+    { id: 204, count: 5 },   // Crystal
+    { id: 203, count: 3 },   // Diamond
+    { id: 230, count: 4 },   // Potion of Healing
+    { id: 122, count: 1 },   // Crystal Sword
+    { id: 202, count: 6 },   // Gold Ingot
+    { id: 159, count: 2 },   // Golden Apple
+    { id: 218, count: 1 },   // Nether Star
   ],
 };
 

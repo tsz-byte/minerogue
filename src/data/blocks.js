@@ -69,7 +69,8 @@ export const BLOCKS = [
   { id: 64, name: 'Carpet', hardness: 0.1, tool: 'none', level: 0, light: 0, transparent: true, solid: false, drop: null, flammable: true, interactable: false },
   { id: 65, name: 'Iron Bars', hardness: 5.0, tool: 'pickaxe', level: 0, light: 0, transparent: true, solid: true, drop: null, flammable: false, interactable: false },
   { id: 66, name: 'Crystal Block', hardness: 5.0, tool: 'pickaxe', level: 2, light: 7, transparent: true, solid: true, drop: null, flammable: false, interactable: false },
-  { id: 67, name: 'Void Stone', hardness: -1, tool: 'none', level: 0, light: 0, transparent: false, solid: true, drop: null, flammable: false, interactable: false }
+  { id: 67, name: 'Void Stone', hardness: -1, tool: 'none', level: 0, light: 0, transparent: false, solid: true, drop: null, flammable: false, interactable: false },
+  { id: 68, name: 'Lantern', hardness: 0.5, tool: 'pickaxe', level: 0, light: 15, transparent: true, solid: false, drop: null, flammable: false, interactable: false }
 ];
 
 export const BLOCK_MAP = Object.fromEntries(BLOCKS.map(b => [b.id, b]));

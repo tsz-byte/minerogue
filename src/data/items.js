@@ -134,6 +134,28 @@ export const ITEMS = [
   { id: 273, name: 'Clay', type: 'material', stackSize: 64, description: 'Found near water. Used for bricks.' },
   { id: 274, name: 'Iron Ore', type: 'material', stackSize: 64, description: 'Smelts into iron ingots. Requires mining level 1.' },
   { id: 275, name: 'Gold Ore', type: 'material', stackSize: 64, description: 'Smelts into gold ingots. Requires mining level 2.' },
+
+  // ===== ADDITIONAL MATERIALS (IDs 280-305) =====
+  { id: 280, name: 'Raw Beef', type: 'material', stackSize: 64, description: 'Uncooked beef. Cook in a furnace for steak.' },
+  { id: 281, name: 'Raw Porkchop', type: 'material', stackSize: 64, description: 'Uncooked pork. Cook in a furnace.' },
+  { id: 282, name: 'Raw Chicken', type: 'material', stackSize: 64, description: 'Uncooked chicken. Cook in a furnace.' },
+  { id: 283, name: 'Raw Mutton', type: 'material', stackSize: 64, description: 'Uncooked mutton. Cook in a furnace.' },
+  { id: 284, name: 'Raw Fish', type: 'material', stackSize: 64, description: 'Uncooked fish. Cook in a furnace.' },
+  { id: 285, name: 'Phantom Membrane', type: 'material', stackSize: 64, description: 'Dropped by phantom. Used for slow falling potions.' },
+  { id: 286, name: 'Slimeball', type: 'material', stackSize: 64, description: 'Dropped by slimes. Used for sticky pistons and leads.' },
+  { id: 287, name: 'Sugar Cane', type: 'material', stackSize: 64, description: 'Grows near water. Used to craft paper.' },
+  { id: 288, name: 'Bowl', type: 'material', stackSize: 64, description: 'Used to craft mushroom stew and other foods.' },
+  { id: 289, name: 'Wheat', type: 'material', stackSize: 64, description: 'Harvested from crops. Used for bread and cake.' },
+  { id: 290, name: 'Bucket', type: 'material', stackSize: 1, description: 'Used to transport liquids.' },
+  { id: 291, name: 'Cocoa Beans', type: 'material', stackSize: 64, description: 'Found in jungles. Used to craft cookies and brown dye.' },
+  { id: 292, name: 'Potato', type: 'material', stackSize: 64, description: 'A food crop. Can be baked in a furnace.' },
+  { id: 293, name: 'Wet Sponge', type: 'material', stackSize: 64, description: 'A sponge that has absorbed water. Dry in furnace.' },
+  { id: 294, name: 'Nether Brick', type: 'material', stackSize: 64, description: 'A building material from the Nether.' },
+  { id: 295, name: 'Ancient Debris', type: 'material', stackSize: 64, description: 'Rare Nether ore. Smelts into Netherite Scrap.' },
+  { id: 296, name: 'Netherite Scrap', type: 'material', stackSize: 64, description: 'Refined from Ancient Debris. Used for Netherite equipment.' },
+  { id: 297, name: 'Sponge', type: 'material', stackSize: 64, description: 'Absorbs water when placed. Obtained by drying wet sponge.' },
+  { id: 298, name: 'Charcoal', type: 'material', stackSize: 64, description: 'Fuel obtained from smelting logs. Burns like coal.' },
+  { id: 299, name: 'Lava Bucket', type: 'material', stackSize: 1, description: 'A bucket of lava. Excellent fuel source.' },
 ];
 
 export const ITEM_MAP = Object.fromEntries(ITEMS.map(i => [i.id, i]));

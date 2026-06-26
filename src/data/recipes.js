@@ -10,8 +10,10 @@
 
 export const CRAFTING_RECIPES = [
   // ===== BASIC MATERIALS =====
-  // Planks from any log
-  { pattern: [['Wood']], result: { id: 'Oak Planks', count: 4 }, shapeless: true },
+  // Planks from any log type
+  { pattern: [['Oak Log']], result: { id: 'Oak Planks', count: 4 }, shapeless: true },
+  { pattern: [['Birch Log']], result: { id: 'Oak Planks', count: 4 }, shapeless: true },
+  { pattern: [['Spruce Log']], result: { id: 'Oak Planks', count: 4 }, shapeless: true },
   // Sticks
   { pattern: [['Oak Planks'], ['Oak Planks']], result: { id: 'Stick', count: 4 } },
   // Paper
@@ -125,6 +127,20 @@ export const CRAFTING_RECIPES = [
 
   // ===== DYES / WOOL =====
   { pattern: [['String', 'String'], ['String', 'String']], result: { id: 'White Wool', count: 1 } },
+
+  // ===== EXTRA ITEMS =====
+  // Bowl
+  { pattern: [['Oak Planks', null, 'Oak Planks'], [null, 'Oak Planks', null]], result: { id: 'Bowl', count: 4 } },
+  // Bucket
+  { pattern: [['Iron Ingot', null, 'Iron Ingot'], [null, 'Iron Ingot', null]], result: { id: 'Bucket', count: 1 } },
+  // Fishing Rod
+  { pattern: [[null, null, 'Stick'], [null, 'Stick', 'String'], ['Stick', null, 'String']], result: { id: 'Fishing Rod', count: 1 } },
+  // Flint and Steel
+  { pattern: [['Iron Ingot'], ['Flint']], result: { id: 'Flint and Steel', count: 1 }, shapeless: true },
+  // Clock
+  { pattern: [[null, 'Gold Ingot', null], ['Gold Ingot', 'Redstone', 'Gold Ingot'], [null, 'Gold Ingot', null]], result: { id: 'Clock', count: 1 } },
+  // Compass
+  { pattern: [[null, 'Iron Ingot', null], ['Iron Ingot', 'Redstone', 'Iron Ingot'], [null, 'Iron Ingot', null]], result: { id: 'Compass', count: 1 } },
 ];
 
 // ============================================================
@@ -170,6 +186,16 @@ export const FUEL_VALUES = {
 // Returns matching recipe or null
 // ============================================================
 
+// Recipe ingredient groups — synonyms for flexible matching
+const INGREDIENT_GROUPS = {
+  'Wood': ['Oak Log', 'Birch Log', 'Spruce Log'],
+  'Oak Planks': ['Oak Planks', 'Birch Planks', 'Spruce Planks'],
+};
+
+function resolveIngredientGroups(patternItem) {
+  return INGREDIENT_GROUPS[patternItem] || [patternItem];
+}
+
 export function findRecipe(grid) {
   if (!grid) return null;
   // Pad 2x2 grid (4 elements) to 3x3 grid (9 elements)
@@ -188,10 +214,21 @@ export function findRecipe(grid) {
       // Shapeless: just compare multisets of non-null ingredients
       const gridItems = g.filter(x => x != null).sort();
       const recipeItems = recipe.pattern.flat().filter(x => x != null).sort();
-      if (gridItems.length === recipeItems.length &&
-          gridItems.every((v, i) => v === recipeItems[i])) {
-        return recipe;
+      if (gridItems.length !== recipeItems.length) continue;
+      const used = new Array(gridItems.length).fill(false);
+      let allMatch = true;
+      for (const gi of gridItems) {
+        let found = false;
+        for (let i = 0; i < recipeItems.length; i++) {
+          if (!used[i] && resolveIngredientGroups(recipeItems[i]).includes(gi)) {
+            used[i] = true;
+            found = true;
+            break;
+          }
+        }
+        if (!found) { allMatch = false; break; }
       }
+      if (allMatch) return recipe;
     } else {
       // Shaped: try to fit pattern in the 3x3 grid
       const patternRows = recipe.pattern.length;
@@ -213,9 +250,10 @@ export function findRecipe(grid) {
                   patternItem = recipe.pattern[pr][pc];
                 }
               }
-              if (patternItem !== gridItem) {
-                match = false;
-              }
+              if (patternItem === null && gridItem === null) continue;
+              if (patternItem === null || gridItem === null) { match = false; continue; }
+              const validNames = resolveIngredientGroups(patternItem);
+              if (!validNames.includes(gridItem)) match = false;
             }
           }
           if (match) return recipe;

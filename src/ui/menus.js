@@ -25,6 +25,16 @@ function resolveIngredientId(name) {
   return getItemByName(name)?.id ?? getBlockByName(name)?.id ?? null;
 }
 
+// Recipe ingredient groups — synonyms for flexible matching
+const INGREDIENT_GROUPS = {
+  'Wood': ['Oak Log', 'Birch Log', 'Spruce Log'],
+  'Oak Planks': ['Oak Planks', 'Birch Planks', 'Spruce Planks'],
+};
+
+function resolveIngredientGroups(patternItem) {
+  return INGREDIENT_GROUPS[patternItem] || [patternItem];
+}
+
 export class MenuManager {
   constructor(saveSystem) {
     this.saveSystem = saveSystem;
@@ -341,6 +351,11 @@ export class MenuManager {
         el.style.cursor = 'pointer';
         el.style.border = '2px solid #4f4';
         this.craftResult.appendChild(el);
+      } else {
+        // Empty placeholder result slot
+        const empty = document.createElement('div');
+        empty.style.cssText = 'width:40px;height:40px;border:2px dashed #444;background:#1a1a1a;';
+        this.craftResult.appendChild(empty);
       }
     }
   }
@@ -367,8 +382,21 @@ export class MenuManager {
     if (recipe.shapeless) {
       const gridItems = grid.filter(x => x != null).sort();
       const recipeItems = recipe.pattern.flat().filter(x => x != null).sort();
-      return gridItems.length === recipeItems.length &&
-             gridItems.every((v, i) => v === recipeItems[i]);
+      if (gridItems.length !== recipeItems.length) return false;
+      // Check each grid item against valid group alternatives
+      const used = new Array(gridItems.length).fill(false);
+      for (const gi of gridItems) {
+        let found = false;
+        for (let i = 0; i < recipeItems.length; i++) {
+          if (!used[i] && resolveIngredientGroups(recipeItems[i]).includes(gi)) {
+            used[i] = true;
+            found = true;
+            break;
+          }
+        }
+        if (!found) return false;
+      }
+      return true;
     }
     const patternRows = recipe.pattern.length;
     const patternCols = Math.max(...recipe.pattern.map(r => r.length));
@@ -387,7 +415,10 @@ export class MenuManager {
                 patternItem = recipe.pattern[pr][pc];
               }
             }
-            if (patternItem !== gridItem) match = false;
+            if (patternItem === null && gridItem === null) continue;
+            if (patternItem === null || gridItem === null) { match = false; continue; }
+            const validNames = resolveIngredientGroups(patternItem);
+            if (!validNames.includes(gridItem)) match = false;
           }
         }
         if (match) return true;
@@ -480,6 +511,11 @@ export class MenuManager {
       el.style.cursor = 'pointer';
       el.style.border = '2px solid #4f4';
       resultContainer.appendChild(el);
+    } else {
+      // Empty placeholder result slot
+      const empty = document.createElement('div');
+      empty.style.cssText = 'width:40px;height:40px;border:2px dashed #444;background:#1a1a1a;';
+      resultContainer.appendChild(empty);
     }
     topRow.appendChild(resultContainer);
     panel.appendChild(topRow);
@@ -563,7 +599,10 @@ export class MenuManager {
 
       let canCraft = true;
       for (const [name, count] of needed) {
-        if ((counts.get(name) ?? 0) < count) { canCraft = false; break; }
+        // Check all possible group alternatives
+        const alternatives = resolveIngredientGroups(name);
+        const available = alternatives.reduce((sum, alt) => sum + (counts.get(alt) ?? 0), 0);
+        if (available < count) { canCraft = false; break; }
       }
 
       const resultId = resolveResultId(recipe.result.id);
@@ -607,15 +646,26 @@ export class MenuManager {
       if (name != null) needed.set(name, (needed.get(name) ?? 0) + 1);
     }
 
-    // Check
+    // Check — resolve each recipe ingredient to an available alternative
+    const resolved = new Map(); // ingredient name -> resolved name
     for (const [name, count] of needed) {
-      const ingredientId = resolveIngredientId(name);
-      if (ingredientId == null || !inventory.hasItem(ingredientId, count)) return;
+      const alternatives = resolveIngredientGroups(name);
+      let found = null;
+      for (const alt of alternatives) {
+        const ingredientId = resolveIngredientId(alt);
+        if (ingredientId != null && inventory.hasItem(ingredientId, count)) {
+          found = alt;
+          break;
+        }
+      }
+      if (!found) return;
+      resolved.set(name, found);
     }
 
-    // Consume
+    // Consume using resolved names
     for (const [name, count] of needed) {
-      const ingredientId = resolveIngredientId(name);
+      const actualName = resolved.get(name);
+      const ingredientId = resolveIngredientId(actualName);
       if (ingredientId != null) inventory.consumeItem(ingredientId, count);
     }
 

@@ -88,7 +88,7 @@ export class HandRenderer {
 
     // Base position (bottom-right of screen, like Minecraft)
     this._baseX = 0.28;
-    this._baseY = -0.22;
+    this._baseY = -0.28;
     this._baseZ = -0.35;
 
     // Root group attached to camera
