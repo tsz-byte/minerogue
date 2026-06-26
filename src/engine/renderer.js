@@ -33,7 +33,10 @@ export class GameRenderer {
   }
 
   _setupLighting() {
-    // Lighting is handled entirely by DayNightCycle system
+    // Lighting is handled by DayNightCycle system
+    // Add base ambient so scene isn't black before daynight initializes
+    this._baseAmbient = new THREE.AmbientLight(0x606080, 0.4);
+    this.scene.add(this._baseAmbient);
   }
 
   resize() {

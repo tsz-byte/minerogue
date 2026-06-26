@@ -101,7 +101,7 @@ export class HandRenderer {
 
     // Item pivot for swing animation
     this.itemPivot = new THREE.Group();
-    this.itemPivot.position.set(0, -0.14, 0);
+    this.itemPivot.position.set(0, -0.08, -0.02);
     this.group.add(this.itemPivot);
 
     // Current item display
@@ -471,22 +471,31 @@ export class HandRenderer {
   swingAttack(toolType = 'hand') {
     this._isSwinging = true;
     this._swingTimer = 0;
+    this._swingToolType = toolType;
     switch (toolType) {
       case 'sword':
-        this._swingDuration = 0.25;
-        this._swingAngle = Math.PI * 0.45; // 81 degrees — moderate arc
+        // Wide horizontal arc — dramatic sweeping slash
+        this._swingDuration = 0.22;
+        this._swingAngle = Math.PI * 0.6; // 108 degrees — wide arc
         break;
-      case 'pickaxe': case 'axe':
+      case 'pickaxe':
+        // Overhead swing — mostly rotation.x (forward overhead chop)
         this._swingDuration = 0.3;
-        this._swingAngle = Math.PI * 0.35;
+        this._swingAngle = Math.PI * 0.5;
+        break;
+      case 'axe':
+        // Diagonal swing — mix of rotation.x and rotation.z
+        this._swingDuration = 0.28;
+        this._swingAngle = Math.PI * 0.45;
         break;
       case 'shovel':
         this._swingDuration = 0.25;
-        this._swingAngle = Math.PI * 0.3;
+        this._swingAngle = Math.PI * 0.35;
         break;
       default:
-        this._swingDuration = 0.2;
-        this._swingAngle = Math.PI * 0.2;
+        // Quick jab — fast, short punch
+        this._swingDuration = 0.15;
+        this._swingAngle = Math.PI * 0.25;
     }
   }
 
@@ -499,17 +508,35 @@ export class HandRenderer {
       const swingProgress = Math.sin(t * Math.PI);
       const angle = swingProgress * this._swingAngle;
 
-      this.itemPivot.rotation.x = -angle;
-      // Sword gets a slight side sweep
-      if (this._currentItemId) {
-        const itemDef = getItem(this._currentItemId);
-        if (itemDef?.type === 'sword') {
-          this.itemPivot.rotation.z = swingProgress * 0.2;
-        }
+      const toolType = this._swingToolType || 'hand';
+      // Reset rotations each frame
+      this.itemPivot.rotation.set(0, 0, 0);
+
+      if (toolType === 'sword') {
+        // Wide horizontal sweep (rotation.y) with slight downward tilt
+        this.itemPivot.rotation.y = -angle * 0.7;
+        this.itemPivot.rotation.x = -angle * 0.3;
+        this.itemPivot.rotation.z = swingProgress * 0.3;
+      } else if (toolType === 'pickaxe') {
+        // Overhead swing — rotation.x dominant (forward overhead chop)
+        this.itemPivot.rotation.x = -angle;
+        this.itemPivot.rotation.z = swingProgress * 0.08;
+      } else if (toolType === 'axe') {
+        // Diagonal swing — both rotation.x and rotation.z
+        this.itemPivot.rotation.x = -angle * 0.7;
+        this.itemPivot.rotation.z = swingProgress * 0.5;
+      } else if (toolType === 'shovel') {
+        // Scooping motion
+        this.itemPivot.rotation.x = -angle;
+        this.itemPivot.rotation.z = swingProgress * 0.15;
+      } else {
+        // Hand/default: quick jab forward
+        this.itemPivot.rotation.x = -angle;
       }
 
       if (t >= 1) {
         this._isSwinging = false;
+        this._swingToolType = null;
         this.itemPivot.rotation.set(0, 0, 0);
       }
     }

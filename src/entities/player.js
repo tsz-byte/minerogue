@@ -908,12 +908,20 @@ export class Player {
       this.hunger = Math.max(0, this.hunger - 0.005);
     }
 
-    // Regeneration when hunger > 18: heal 0.01/sec
-    if (this.hunger > 18 && this.health < this.maxHealth) {
+    // Regeneration based on hunger level
+    if (this.health < this.maxHealth && this.hunger > 0) {
       this._regenTimer += dt;
-      if (this._regenTimer >= 1) {
-        this._regenTimer -= 1;
-        this.heal(0.01);
+      let regenRate = 0; // seconds between heals
+      if (this.hunger >= 18) {
+        regenRate = 1.0; // fast regen when nearly full (heal 1 HP/sec)
+      } else if (this.hunger >= 14) {
+        regenRate = 3.0; // moderate regen
+      } else if (this.hunger >= 10) {
+        regenRate = 6.0; // slow regen when half full
+      }
+      if (regenRate > 0 && this._regenTimer >= regenRate) {
+        this._regenTimer -= regenRate;
+        this.heal(1);
       }
     }
 

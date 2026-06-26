@@ -819,23 +819,47 @@ export class MobManager {
   _createChickenMesh(colors) {
     const group = new THREE.Group();
 
+    // Body
     const body = _box(0.4, 0.4, 0.5, colors.body, 0, 0.6, 0);
     body.userData.baseY = 0.6;
     group.add(body);
 
+    // Head
     const head = _box(0.3, 0.3, 0.3, colors.body, 0, 0.95, 0.15);
     head.userData.baseY = 0.95;
     group.add(head);
 
-    group.add(_box(0.1, 0.08, 0.12, colors.head, 0, 0.92, 0.35)); // beak
+    // Beak (bigger, orange)
+    group.add(_box(0.14, 0.1, 0.16, 0xFF8800, 0, 0.9, 0.38));
 
-    const leftLeg = _box(0.08, 0.35, 0.08, 0xAAAA55, -0.1, 0.35, 0);
-    leftLeg.geometry.translate(0, -0.175, 0);
+    // Red wattle under beak
+    group.add(_box(0.06, 0.1, 0.04, 0xCC0000, 0, 0.78, 0.3));
+
+    // Eyes
+    group.add(_box(0.05, 0.05, 0.02, 0x111111, -0.08, 1.0, 0.3));
+    group.add(_box(0.05, 0.05, 0.02, 0x111111, 0.08, 1.0, 0.3));
+
+    // Wings (tiny white boxes on sides)
+    group.add(_box(0.06, 0.2, 0.25, 0xF0F0F0, -0.24, 0.62, 0));
+    group.add(_box(0.06, 0.2, 0.25, 0xF0F0F0, 0.24, 0.62, 0));
+
+    // Tail feathers (small angled boxes at back)
+    group.add(_box(0.08, 0.18, 0.04, 0xDDD8C8, 0, 0.72, -0.3));
+    group.add(_box(0.06, 0.15, 0.04, 0xDDD8C8, -0.06, 0.74, -0.28));
+    group.add(_box(0.06, 0.15, 0.04, 0xDDD8C8, 0.06, 0.74, -0.28));
+
+    // Legs (pivot at hip)
+    const leftLeg = _box(0.08, 0.3, 0.08, 0xAAAA55, -0.1, 0.35, 0);
+    leftLeg.geometry.translate(0, -0.15, 0);
     group.add(leftLeg);
 
-    const rightLeg = _box(0.08, 0.35, 0.08, 0xAAAA55, 0.1, 0.35, 0);
-    rightLeg.geometry.translate(0, -0.175, 0);
+    const rightLeg = _box(0.08, 0.3, 0.08, 0xAAAA55, 0.1, 0.35, 0);
+    rightLeg.geometry.translate(0, -0.15, 0);
     group.add(rightLeg);
+
+    // Feet (flat orange boxes at bottom of legs)
+    group.add(_box(0.14, 0.04, 0.16, 0xFF8800, -0.1, 0.06, 0.04));
+    group.add(_box(0.14, 0.04, 0.16, 0xFF8800, 0.1, 0.06, 0.04));
 
     group.userData.parts = { head, body, leftLeg, rightLeg, leftArm: null, rightArm: null };
     return group;
@@ -844,28 +868,46 @@ export class MobManager {
   _createSpiderMesh(colors, type) {
     const group = new THREE.Group();
 
-    const body = _box(1.0, 0.5, 0.8, colors.body, 0, 0.5, -0.2);
-    body.userData.baseY = 0.5;
+    // Abdomen (flatter, wider)
+    const body = _box(1.2, 0.4, 1.0, colors.body, 0, 0.45, -0.3);
+    body.userData.baseY = 0.45;
     group.add(body);
 
-    const head = _box(0.6, 0.5, 0.5, colors.head, 0, 0.55, 0.3);
-    head.userData.baseY = 0.55;
+    // Head (slightly smaller, forward)
+    const head = _box(0.6, 0.45, 0.5, colors.head, 0, 0.5, 0.3);
+    head.userData.baseY = 0.5;
     group.add(head);
 
-    // Eyes
+    // Eyes (glowing red) - 4 pairs
     const eyeColor = colors.eyes || 0xff0000;
-    for (const [x, y, z] of [[-0.15, 0.65, 0.56], [0.15, 0.65, 0.56], [-0.22, 0.55, 0.56], [0.22, 0.55, 0.56]]) {
-      group.add(_box(0.1, 0.1, 0.05, eyeColor, x, y, z));
+    const eyeMat = new THREE.MeshBasicMaterial({ color: eyeColor });
+    for (const [x, y, z] of [[-0.15, 0.62, 0.56], [0.15, 0.62, 0.56], [-0.22, 0.52, 0.56], [0.22, 0.52, 0.56]]) {
+      const eyeGeo = new THREE.BoxGeometry(0.1, 0.1, 0.05);
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(x, y, z);
+      group.add(eye);
+    }
+    // Additional smaller eyes
+    for (const [x, y, z] of [[-0.08, 0.65, 0.56], [0.08, 0.65, 0.56], [-0.25, 0.45, 0.56], [0.25, 0.45, 0.56]]) {
+      const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.04);
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(x, y, z);
+      group.add(eye);
     }
 
-    // 8 legs (simplified to 4 visible pairs)
-    const legAngles = [-0.5, -0.2, 0.1, 0.4];
+    // Fangs below head (white/light gray)
+    group.add(_box(0.04, 0.14, 0.04, 0xccccaa, -0.08, 0.2, 0.52));
+    group.add(_box(0.04, 0.14, 0.04, 0xccccaa, 0.08, 0.2, 0.52));
+
+    // 8 legs (4 per side) — longer, angled outward
+    const legAngles = [-0.6, -0.2, 0.15, 0.5];
     const legs = [];
     for (const zOff of legAngles) {
       for (const side of [-1, 1]) {
-        const leg = _box(0.1, 0.6, 0.1, colors.body, side * 0.55, 0.6, zOff);
-        leg.geometry.translate(0, -0.3, 0);
-        leg.rotation.z = side * 0.5;
+        // Upper segment
+        const leg = _box(0.06, 0.7, 0.06, colors.body, side * 0.65, 0.55, zOff);
+        leg.geometry.translate(0, -0.35, 0);
+        leg.rotation.z = side * 0.6;
         group.add(leg);
         legs.push(leg);
       }
