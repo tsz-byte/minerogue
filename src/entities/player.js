@@ -506,6 +506,10 @@ export class Player {
           // Tool broke!
           this.inventory.setSlot(this.selectedSlot, null);
           this.audio?.play?.('block_break');
+          // Track tool break for achievements
+          if (window.game?.runStats) {
+            window.game.runStats.toolsBroken = (window.game.runStats.toolsBroken || 0) + 1;
+          }
         }
       }
     }
@@ -516,6 +520,18 @@ export class Player {
     // Track for stats
     if (window.game?.runStats) {
       window.game.runStats.blocksMined = (window.game.runStats.blocksMined || 0) + 1;
+      // Track specific ore types for achievements
+      const oreMap = {
+        12: 'diamondsMined', // Diamond Ore
+        11: 'ironMined',     // Iron Ore
+        10: 'goldMined',     // Gold Ore
+        20: 'crystalMined',  // Crystal Ore
+        15: 'obsidianMined', // Obsidian
+      };
+      const statKey = oreMap[blockId];
+      if (statKey) {
+        window.game.runStats[statKey] = (window.game.runStats[statKey] || 0) + 1;
+      }
     }
   }
 
@@ -822,6 +838,10 @@ export class Player {
     if (itemDef.type === 'potion') {
       this.inventory.removeItem(this.selectedSlot, 1);
       this.audio?.play?.('eat');
+      // Track potion use for achievements
+      if (window.game?.runStats) {
+        window.game.runStats.potionsUsed = (window.game.runStats.potionsUsed || 0) + 1;
+      }
 
       // Apply potion effects
       if (itemDef.effects) {
@@ -845,6 +865,11 @@ export class Player {
     this.hunger = Math.min(this._maxHunger, this.hunger + Math.floor((itemDef.hunger || 4) * healMult));
     this.inventory.removeItem(this.selectedSlot, 1);
     this.audio?.play?.('eat');
+
+    // Track food eaten for achievements
+    if (window.game?.runStats) {
+      window.game.runStats.foodEaten = (window.game.runStats.foodEaten || 0) + 1;
+    }
 
     // Apply food effects (e.g. golden apple regeneration)
     if (itemDef.effects) {

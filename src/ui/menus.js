@@ -435,12 +435,14 @@ export class MenuManager {
     if (remaining > 0) return;
 
     // Consume ingredients
+    let consumed = false;
     if (sourceType === 'craft2' && this._inventory._craftGrid) {
       for (let i = 0; i < 4; i++) {
         const slot = this._inventory._craftGrid[i];
         if (slot) {
           slot.count--;
           if (slot.count <= 0) this._inventory._craftGrid[i] = null;
+          consumed = true;
         }
       }
     } else if (sourceType === 'craft3' && this._inventory._craftGrid3x3) {
@@ -449,8 +451,13 @@ export class MenuManager {
         if (slot) {
           slot.count--;
           if (slot.count <= 0) this._inventory._craftGrid3x3[i] = null;
+          consumed = true;
         }
       }
+    }
+    // Achievement tracking for crafting
+    if (consumed && window.game?.runStats) {
+      window.game.runStats.craftsDone = (window.game.runStats.craftsDone || 0) + 1;
     }
     this._refreshCurrentScreen();
   }

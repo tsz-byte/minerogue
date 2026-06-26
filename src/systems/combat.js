@@ -102,6 +102,22 @@ export class CombatSystem {
       const isKill = mob.hp - finalDmg <= 0;
       this.mobManager.damageMob(mob, finalDmg, kbDir);
 
+      // Achievement tracking
+      if (window.game?.runStats) {
+        if (isCrit) window.game.runStats.critsLanded = (window.game.runStats.critsLanded || 0) + 1;
+        if (isKill) {
+          window.game.runStats.mobsKilled = (window.game.runStats.mobsKilled || 0) + 1;
+          // Boss tracking
+          if (mob._def?.isBoss) {
+            window.game.runStats.bossesKilled = (window.game.runStats.bossesKilled || 0) + 1;
+          }
+          // Creeper pre-kill (killed before explosion)
+          if (mob._def?.special === 'explosive') {
+            window.game.runStats.creeperPreKill = (window.game.runStats.creeperPreKill || 0) + 1;
+          }
+        }
+      }
+
       // JUICE
       this._hitstopTimer = (isKill ? 100 : (isCrit ? 80 : 30)) / 1000;
       this.player.addCameraShake(isKill ? 0.4 : (isCrit ? 0.3 : 0.15));
