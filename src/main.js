@@ -19,7 +19,6 @@ import { ParticleSystem } from './particles.js';
 import { HUD } from './ui/hud.js';
 import { MenuManager } from './ui/menus.js';
 import { getItem } from './data/items.js';
-import { getBlock } from './data/blocks.js';
 import { Minimap } from './ui/minimap.js';
 import { HandRenderer } from './ui/hand.js';
 import { createTextureAtlas, createItemTextureAtlas } from './textures.js';
@@ -578,8 +577,9 @@ class Game {
         this.menus.hideInventory();
         this.input.requestPointerLock();
       } else if (this.state === STATE.PLAYING || this.state === STATE.HOME) {
-        // Open inventory — keep pointer lock, virtual cursor handles interaction
+        // Open inventory — release pointer lock for mouse cursor
         this.state = STATE.INVENTORY;
+        document.exitPointerLock?.();
         this.menus.showInventory(this.inventory, this.crafting);
       }
       return;
@@ -594,8 +594,9 @@ class Game {
         this.menus.hideCraftingTable();
         this.input.requestPointerLock();
       } else if (this.state === STATE.PLAYING || this.state === STATE.HOME) {
-        // Open crafting — keep pointer lock, virtual cursor handles interaction
+        // Open crafting — release pointer lock for mouse cursor
         this.state = STATE.CRAFTING_TABLE;
+        document.exitPointerLock?.();
         this.menus.showCraftingTable(this.inventory, this.crafting);
       }
       return;

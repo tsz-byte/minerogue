@@ -5,11 +5,8 @@
 import * as THREE from 'three';
 import { getItem, isTool } from '../data/items.js';
 
-// Skin tone for hand/arm
-const HAND_COLOR = 0xc8956a;
-// No visible sleeve — keep it off-screen by extending the arm geometry upward
-// Use a skin-matching color so even if a bit peeks in, it blends naturally
-const ARM_COLOR = 0xc8956a;
+// Skin tone for hand/arm — Minecraft Steve color
+const SKIN_COLOR = 0xc8956a;
 
 // Material colors
 const MAT_COLORS = {
@@ -126,21 +123,18 @@ export class HandRenderer {
   }
 
   _buildArm() {
-    // Forearm — skin-colored, angled slightly to look natural
-    // Positioned so the upper part goes above/behind the viewport edge
-    const armGeo = new THREE.BoxGeometry(0.09, 0.32, 0.09);
-    const armMat = new THREE.MeshLambertMaterial({ color: ARM_COLOR, depthTest: false });
+    // Simple Minecraft-style arm — one skin-colored box for forearm+hand
+    // Steve's arm is 4px wide × 12px tall × 4px deep (scaled to world units)
+    const armGeo = new THREE.BoxGeometry(0.12, 0.40, 0.12);
+    const armMat = new THREE.MeshLambertMaterial({ color: SKIN_COLOR, depthTest: false });
     this.arm = new THREE.Mesh(armGeo, armMat);
-    this.arm.position.set(0.02, 0.12, 0.02);
-    this.arm.rotation.z = 0.15; // slight angle
+    // Position: bottom-right of viewport, slightly angled inward
+    this.arm.position.set(0.04, 0.06, 0.02);
+    // Slight natural hold angle — tilted back and inward like Minecraft
+    this.arm.rotation.set(-0.15, 0.3, -0.1);
     this.group.add(this.arm);
-
-    // Hand — slightly wider than forearm, skin-toned
-    const handGeo = new THREE.BoxGeometry(0.095, 0.09, 0.10);
-    const handMat = new THREE.MeshLambertMaterial({ color: HAND_COLOR, depthTest: false });
-    this.hand = new THREE.Mesh(handGeo, handMat);
-    this.hand.position.set(0.02, -0.10, 0);
-    this.group.add(this.hand);
+    // Keep a reference for compatibility
+    this.hand = this.arm;
   }
 
   _setRenderOrder(obj, order) {

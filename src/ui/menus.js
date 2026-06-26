@@ -185,6 +185,7 @@ export class MenuManager {
     this._vcActive = false;
     this._vcEl.style.display = 'none';
     this._dropHeldItem();
+    this._hideTooltip();
     // Restore cursors
     document.querySelectorAll('#ui-layer > *').forEach(el => {
       el.style.cursor = '';
@@ -770,13 +771,93 @@ export class MenuManager {
 
   // ─── Slot Helpers ─────────────────────────────────────
 
+  // ─── Tooltip ─────────────────────────────────────────
+
+  _showTooltip(item, event) {
+    this._hideTooltip();
+    const itemDef = getItem(item.id);
+    if (!itemDef) return;
+
+    const el = document.createElement('div');
+    el.id = 'item-tooltip';
+    el.style.cssText = 'position:fixed;z-index:99999;background:rgba(20,12,28,0.95);border:2px solid #555;padding:8px 12px;pointer-events:none;max-width:220px;font-family:monospace;';
+
+    // Name
+    const name = document.createElement('div');
+    name.style.cssText = 'color:#fff;font-size:13px;font-weight:bold;margin-bottom:4px;';
+    name.textContent = itemDef.name;
+    el.appendChild(name);
+
+    // Type line
+    if (itemDef.type) {
+      const type = document.createElement('div');
+      type.style.cssText = 'color:#888;font-size:10px;text-transform:uppercase;margin-bottom:4px;';
+      type.textContent = itemDef.type;
+      el.appendChild(type);
+    }
+
+    // Stats
+    const stats = [];
+    if (itemDef.damage) stats.push(`⚔ Damage: ${itemDef.damage}`);
+    if (itemDef.defense) stats.push(`🛡 Defense: ${itemDef.defense}`);
+    if (itemDef.speed) stats.push(`⚡ Speed: ${itemDef.speed}`);
+    if (itemDef.durability) stats.push(`♻ Durability: ${itemDef.durability}`);
+    if (itemDef.mineLevel > 0) stats.push(`⛏ Mining Level: ${itemDef.mineLevel}`);
+    if (itemDef.hunger) stats.push(`🍖 Hunger: +${itemDef.hunger}`);
+    if (itemDef.blockChance) stats.push(`🛡 Block: ${Math.round(itemDef.blockChance * 100)}%`);
+
+    for (const stat of stats) {
+      const s = document.createElement('div');
+      s.style.cssText = 'color:#aaf;font-size:11px;';
+      s.textContent = stat;
+      el.appendChild(s);
+    }
+
+    // Description
+    if (itemDef.description) {
+      const desc = document.createElement('div');
+      desc.style.cssText = 'color:#aaa;font-size:10px;margin-top:4px;line-height:1.4;font-style:italic;';
+      desc.textContent = itemDef.description;
+      el.appendChild(desc);
+    }
+
+    // Stack info
+    if (item.count > 1) {
+      const cnt = document.createElement('div');
+      cnt.style.cssText = 'color:#888;font-size:10px;margin-top:2px;';
+      cnt.textContent = `Count: ${item.count}`;
+      el.appendChild(cnt);
+    }
+
+    document.body.appendChild(el);
+    this._tooltipEl = el;
+
+    // Position near cursor
+    const x = Math.min(event.clientX + 12, window.innerWidth - 240);
+    const y = Math.min(event.clientY + 12, window.innerHeight - 200);
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+  }
+
+  _hideTooltip() {
+    if (this._tooltipEl) {
+      this._tooltipEl.remove();
+      this._tooltipEl = null;
+    }
+  }
+
   _createSlot(slots, index, slotType) {
     const el = document.createElement('div');
     el.className = 'inv-slot';
     el.dataset.slot = index;
     el.style.cssText = 'width:40px;height:40px;border:1px solid #555;background:#1a1a1a;position:relative;cursor:pointer;';
     const item = slots[index];
-    if (item) el.appendChild(this._createSlotIcon(item));
+    if (item) {
+      el.appendChild(this._createSlotIcon(item));
+      // Tooltip on hover
+      el.addEventListener('mouseenter', (e) => this._showTooltip(item, e));
+      el.addEventListener('mouseleave', () => this._hideTooltip());
+    }
     el.onclick = () => this._handleSlotClick(slotType, index);
     return el;
   }
