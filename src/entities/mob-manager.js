@@ -55,11 +55,13 @@ const MOB_COLORS = {
 
 // Mob type categories
 const HUMANOID_TYPES = new Set([
-  'zombie', 'skeleton', 'enderman', 'witch', 'husk',
-  'giant_zombie', 'necromancer', 'corrupted_champion', 'villager', 'harpy', 'mimic',
+  'zombie', 'skeleton', 'enderman', 'husk',
+  'giant_zombie', 'corrupted_champion', 'villager',
 ]);
 const QUADRUPED_TYPES = new Set(['cow', 'pig', 'sheep']);
 const PASSIVE_TYPES = new Set(['cow', 'pig', 'chicken', 'sheep', 'fish', 'villager']);
+const GENERATED_TEXTURE_TYPES = new Set(['zombie', 'husk', 'enderman', 'cow', 'pig', 'sheep', 'giant_zombie', 'corrupted_champion', 'villager']);
+const HEAD_BODY_TEXTURE_TYPES = new Set(['skeleton', 'creeper', 'spider', 'cave_spider', 'spider_queen', 'chicken']);
 
 export class MobManager {
   /**
@@ -675,6 +677,20 @@ export class MobManager {
       mesh = this._createChickenMesh(colors);
     } else if (type === 'slime') {
       mesh = this._createSlimeMesh(colors);
+    } else if (type === 'witch') {
+      mesh = this._createWitchMesh(colors);
+    } else if (type === 'phantom') {
+      mesh = this._createPhantomMesh(colors);
+    } else if (type === 'harpy') {
+      mesh = this._createHarpyMesh(colors);
+    } else if (type === 'mimic') {
+      mesh = this._createMimicMesh(colors);
+    } else if (type === 'necromancer') {
+      mesh = this._createNecromancerMesh(colors);
+    } else if (type === 'crystal_golem') {
+      mesh = this._createCrystalGolemMesh(colors);
+    } else if (type === 'void_wyrm') {
+      mesh = this._createVoidWyrmMesh(colors);
     } else {
       mesh = this._createHumanoidMesh(colors, type);
     }
@@ -690,14 +706,31 @@ export class MobManager {
   }
 
   _applyMobTexture(group, type) {
-    if (!this._mobTextureAtlas) return;
     const parts = group.userData?.parts;
-    if (!parts) return;
+    if (!parts?.head?.geometry) return;
+
+    const applyGenerated = GENERATED_TEXTURE_TYPES.has(type);
+    const targetParts = HEAD_BODY_TEXTURE_TYPES.has(type) ? ['head', 'body'] : ['head'];
+
+    if (applyGenerated) {
+      for (const partName of targetParts) {
+        const part = parts[partName];
+        if (!part?.geometry || part.material?._special) continue;
+        const texture = this._generateBodyTexture(type, 24, 24);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        part.material = new THREE.MeshLambertMaterial({ map: texture });
+      }
+      return;
+    }
+
+    if (!this._mobTextureAtlas) return;
 
     const faceOrder = [3, 2, 4, 5, 0, 1];
-    for (const partName of Object.keys(parts)) {
+    for (const partName of targetParts) {
       const part = parts[partName];
-      if (!part || !part.geometry || part.material?._special) continue;
+      if (!part?.geometry || part.material?._special) continue;
       const uvs = part.geometry.attributes.uv;
       if (!uvs) continue;
       for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
@@ -729,27 +762,6 @@ export class MobManager {
         group.add(_box(0.12, 0.1, 0.02, 0x6a4a2a, 0.15, 0.9, 0.13));
         break;
       }
-      case 'skeleton': {
-        // Ribcage detail (3 horizontal white lines on body front)
-        for (let i = 0; i < 3; i++) {
-          const ribY = 1.1 + i * 0.12;
-          group.add(_box(0.35, 0.03, 0.02, 0xeeeedd, 0, ribY, 0.13));
-        }
-        // Skull eye sockets (dark insets on head front)
-        group.add(_box(0.1, 0.08, 0.02, 0x1a1a1a, -0.1, 1.8, 0.26));
-        group.add(_box(0.1, 0.08, 0.02, 0x1a1a1a, 0.1, 1.8, 0.26));
-        break;
-      }
-      case 'creeper': {
-        // Iconic face pattern on head front: dark L-shape eyes + mouth
-        group.add(_box(0.1, 0.1, 0.02, 0x1a1a1a, -0.1, 1.82, 0.26));
-        group.add(_box(0.1, 0.1, 0.02, 0x1a1a1a, 0.1, 1.82, 0.26));
-        group.add(_box(0.08, 0.15, 0.02, 0x1a1a1a, -0.14, 1.68, 0.26));
-        group.add(_box(0.08, 0.15, 0.02, 0x1a1a1a, 0.14, 1.68, 0.26));
-        group.add(_box(0.2, 0.08, 0.02, 0x1a1a1a, 0, 1.58, 0.26));
-        group.add(_box(0.08, 0.1, 0.02, 0x1a1a1a, 0, 1.65, 0.26));
-        break;
-      }
       case 'spider':
       case 'cave_spider':
       case 'spider_queen': {
@@ -763,13 +775,7 @@ export class MobManager {
         break;
       }
       case 'enderman': {
-        // Purple particle glow around eyes (wider aura)
-        const auraMat = new THREE.MeshBasicMaterial({ color: 0x9900ff, transparent: true, opacity: 0.2 });
-        const auraGeo = new THREE.BoxGeometry(0.5, 0.2, 0.12);
-        const aura = new THREE.Mesh(auraGeo, auraMat);
-        aura.position.set(0, 2.25, 0.3);
-        aura.material._special = true;
-        group.add(aura);
+        // Keep enderman clean: the old front aura box read as stray white/purple lines.
         break;
       }
       case 'witch': {
@@ -800,15 +806,7 @@ export class MobManager {
             child.material.color.setHex(0x5a6a8a);
           }
         });
-        // Glowing green eyes
-        const pEyeMat = new THREE.MeshBasicMaterial({ color: 0x44ff44 });
-        pEyeMat._special = true;
-        for (const x of [-0.1, 0.1]) {
-          const eyeGeo = new THREE.BoxGeometry(0.08, 0.06, 0.02);
-          const eye = new THREE.Mesh(eyeGeo, pEyeMat);
-          eye.position.set(x, 0.55, 0.26);
-          group.add(eye);
-        }
+        // Eyes are already placed correctly in _createPhantomMesh.
         break;
       }
       case 'slime': {
@@ -821,13 +819,12 @@ export class MobManager {
         break;
       }
       case 'cow': {
-        // Brown body with white spots (randomized)
-        for (let i = 0; i < 4; i++) {
-          group.add(_box(0.2, 0.2, 0.02, 0xeeeedd,
-            (Math.random() - 0.5) * 0.6, 1.0 + (Math.random() - 0.5) * 0.3, 0.61));
-        }
+        group.add(_box(0.22, 0.18, 0.02, 0xeeeedd, -0.22, 1.12, 0.61));
+        group.add(_box(0.18, 0.22, 0.02, 0xeeeedd, 0.12, 0.9, 0.61));
+        group.add(_box(0.14, 0.12, 0.02, 0xeeeedd, 0.02, 1.22, 0.61));
         break;
       }
+
       case 'pig': {
         // Darker pink snout
         group.add(_box(0.25, 0.18, 0.1, 0xcc8080, 0, 1.05, 0.75));
@@ -847,6 +844,13 @@ export class MobManager {
         const wool = new THREE.Mesh(woolGeo, woolMat);
         wool.position.set(0, 1.05, 0);
         group.add(wool);
+        break;
+      }
+      case 'husk': {
+        group.add(_box(0.48, 0.08, 0.03, 0x8d7a52, 0, 1.2, 0.14));
+        group.add(_box(0.44, 0.08, 0.03, 0x8d7a52, 0, 0.98, 0.14));
+        group.add(_box(0.18, 0.08, 0.03, 0x8d7a52, -0.38, 1.1, 0.08));
+        group.add(_box(0.18, 0.08, 0.03, 0x8d7a52, 0.38, 1.28, 0.08));
         break;
       }
       case 'crystal_golem': {
@@ -1351,6 +1355,325 @@ export class MobManager {
 
     // Mouth below eyes (dark rectangle)
     group.add(_box(0.2, 0.08, 0.02, 0x225522, 0, 1.62, 0.26));
+
+    group.userData.parts = { head, body, leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
+    return group;
+  }
+
+  // ===== WITCH — hooded figure with hat and potions =====
+  _createWitchMesh(colors) {
+    const group = new THREE.Group();
+
+    // Body (robe-like, wider at bottom)
+    const body = _box(0.5, 0.8, 0.3, 0x4a2a4a, 0, 1.0, 0);
+    body.userData.baseY = 1.0;
+    group.add(body);
+
+    // Robe extension (wider, covers legs)
+    group.add(_box(0.6, 0.4, 0.35, 0x3a1a3a, 0, 0.4, 0));
+
+    // Head
+    const head = _box(0.4, 0.4, 0.4, colors.head || 0x6a5a6a, 0, 1.65, 0);
+    head.userData.baseY = 1.65;
+    group.add(head);
+
+    // Hat brim
+    group.add(_box(0.7, 0.06, 0.7, 0x2a1a2a, 0, 1.88, 0));
+    // Hat cone (stacked decreasing boxes)
+    group.add(_box(0.55, 0.1, 0.55, 0x2a1a2a, 0, 1.94, 0));
+    group.add(_box(0.4, 0.1, 0.4, 0x2a1a2a, 0, 2.04, 0));
+    group.add(_box(0.25, 0.12, 0.25, 0x2a1a2a, 0, 2.14, 0));
+    group.add(_box(0.12, 0.1, 0.12, 0x2a1a2a, 0, 2.24, 0));
+
+    // Nose (protruding)
+    group.add(_box(0.08, 0.12, 0.1, 0x5a4a5a, 0.05, 1.62, 0.24));
+
+    // Eyes (green glow)
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x30c030 });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.02), eyeMat).translateX(-0.1).translateY(1.7).translateZ(0.21));
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.02), eyeMat).translateX(0.1).translateY(1.7).translateZ(0.21));
+
+    // Potion in hand
+    group.add(_box(0.08, 0.12, 0.08, 0x30aa30, 0.35, 1.1, 0.1));
+    group.add(_box(0.04, 0.04, 0.04, 0x20aa20, 0.35, 1.18, 0.1));
+
+    group.userData.parts = { head, body, leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
+    return group;
+  }
+
+  // ===== PHANTOM — flying flat body with wings =====
+  _createPhantomMesh(colors) {
+    const group = new THREE.Group();
+
+    // Flat body
+    const body = _box(0.6, 0.1, 0.4, colors.body || 0x4a4a6a, 0, 1.5, 0);
+    body.userData.baseY = 1.5;
+    group.add(body);
+
+    // Head
+    const head = _box(0.3, 0.25, 0.3, colors.head || 0x3a3a5a, 0, 1.55, 0.3);
+    head.userData.baseY = 1.55;
+    group.add(head);
+
+    // Glowing green eyes
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x44ff44 });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.02), eyeMat).translateX(-0.08).translateY(1.6).translateZ(0.46));
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.02), eyeMat).translateX(0.08).translateY(1.6).translateZ(0.46));
+
+    // Left wing
+    const wingMat = new THREE.MeshLambertMaterial({ color: colors.body || 0x4a4a6a, transparent: true, opacity: 0.8 });
+    const lw = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.5), wingMat);
+    lw.position.set(-0.7, 1.5, -0.05);
+    lw.rotation.z = 0.15;
+    group.add(lw);
+
+    // Right wing
+    const rw = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.5), wingMat);
+    rw.position.set(0.7, 1.5, -0.05);
+    rw.rotation.z = -0.15;
+    group.add(rw);
+
+    // Tail
+    group.add(_box(0.1, 0.06, 0.6, colors.body || 0x4a4a6a, 0, 1.48, -0.5));
+
+    group.userData.parts = { head, body, leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
+    return group;
+  }
+
+  // ===== HARPY — winged humanoid =====
+  _createHarpyMesh(colors) {
+    const group = new THREE.Group();
+
+    // Body (slim)
+    const body = _box(0.4, 0.6, 0.25, colors.body || 0x8a6a4a, 0, 1.1, 0);
+    body.userData.baseY = 1.1;
+    group.add(body);
+
+    // Head
+    const head = _box(0.35, 0.35, 0.35, colors.head || 0xddbbaa, 0, 1.65, 0);
+    head.userData.baseY = 1.65;
+    group.add(head);
+
+    // Eyes
+    group.add(_box(0.06, 0.06, 0.02, 0x222222, -0.08, 1.7, 0.18));
+    group.add(_box(0.06, 0.06, 0.02, 0x222222, 0.08, 1.7, 0.18));
+
+    // Beak (small, yellow)
+    group.add(_box(0.08, 0.06, 0.1, 0xe8c840, 0, 1.6, 0.22));
+
+    // Wings (large feathered)
+    const wingColor = colors.body || 0x8a6a4a;
+    const lwing = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.08), new THREE.MeshLambertMaterial({ color: wingColor }));
+    lwing.position.set(-0.45, 1.2, -0.05);
+    lwing.rotation.z = 0.3;
+    group.add(lwing);
+    const rwing = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.08), new THREE.MeshLambertMaterial({ color: wingColor }));
+    rwing.position.set(0.45, 1.2, -0.05);
+    rwing.rotation.z = -0.3;
+    group.add(rwing);
+
+    // Tail feathers
+    group.add(_box(0.15, 0.3, 0.05, 0x7a5a3a, 0, 0.85, -0.2));
+    group.add(_box(0.1, 0.25, 0.05, 0x8a6a4a, -0.08, 0.88, -0.18));
+    group.add(_box(0.1, 0.25, 0.05, 0x8a6a4a, 0.08, 0.88, -0.18));
+
+    // Legs (clawed feet)
+    const legColor = 0xaaaa55;
+    const ll = _box(0.06, 0.4, 0.06, legColor, -0.1, 0.55, 0);
+    ll.geometry.translate(0, -0.2, 0);
+    group.add(ll);
+    const rl = _box(0.06, 0.4, 0.06, legColor, 0.1, 0.55, 0);
+    rl.geometry.translate(0, -0.2, 0);
+    group.add(rl);
+    // Claws
+    group.add(_box(0.1, 0.03, 0.12, 0xaaaa55, -0.1, 0.14, 0.04));
+    group.add(_box(0.1, 0.03, 0.12, 0xaaaa55, 0.1, 0.14, 0.04));
+
+    group.userData.parts = { head, body, leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
+    return group;
+  }
+
+  // ===== MIMIC — chest with teeth and tongue =====
+  _createMimicMesh(colors) {
+    const group = new THREE.Group();
+
+    // Chest body
+    const body = _box(0.7, 0.5, 0.5, 0x8b4513, 0, 0.5, 0);
+    body.userData.baseY = 0.5;
+    group.add(body);
+
+    // Chest lid (open, angled back)
+    const lid = _box(0.7, 0.08, 0.35, 0x9a5a20, 0, 0.8, -0.15);
+    lid.rotation.x = -0.6;
+    lid.userData.baseY = 0.8;
+    group.add(lid);
+
+    // Teeth along front edge (row of small white boxes)
+    for (let i = -0.25; i <= 0.25; i += 0.08) {
+      group.add(_box(0.04, 0.08, 0.02, 0xeeeedd, i, 0.75, 0.26));
+    }
+
+    // Eyes (glowing yellow inside)
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.02), eyeMat).translateX(-0.15).translateY(0.65).translateZ(0.26));
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.02), eyeMat).translateX(0.15).translateY(0.65).translateZ(0.26));
+
+    // Tongue (red, extending forward)
+    group.add(_box(0.08, 0.03, 0.25, 0xcc3333, 0, 0.52, 0.35));
+
+    // Gold coins visible inside
+    group.add(_box(0.06, 0.04, 0.06, 0xffd700, -0.1, 0.32, 0.1));
+    group.add(_box(0.06, 0.04, 0.06, 0xffd700, 0.05, 0.34, 0.15));
+
+    // Legs (short mimic legs)
+    const ll = _box(0.1, 0.2, 0.1, 0x8b4513, -0.25, 0.2, 0);
+    ll.geometry.translate(0, -0.1, 0);
+    group.add(ll);
+    const rl = _box(0.1, 0.2, 0.1, 0x8b4513, 0.25, 0.2, 0);
+    rl.geometry.translate(0, -0.1, 0);
+    group.add(rl);
+
+    group.userData.parts = { head: body, body, leftArm: null, rightArm: null, leftLeg: ll, rightLeg: rl };
+    return group;
+  }
+
+  // ===== NECROMANCER — hooded floating dark figure =====
+  _createNecromancerMesh(colors) {
+    const group = new THREE.Group();
+
+    // Robe (wide, extends to ground, no legs visible)
+    const body = _box(0.6, 1.2, 0.35, 0x1a0a1a, 0, 0.9, 0);
+    body.userData.baseY = 0.9;
+    group.add(body);
+
+    // Hood (wider than head, enclosing)
+    const head = _box(0.5, 0.5, 0.5, 0x0a0a0a, 0, 1.75, 0);
+    head.userData.baseY = 1.75;
+    group.add(head);
+
+    // Glowing red eyes (visible through hood darkness)
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeMat).translateX(-0.1).translateY(1.75).translateZ(0.26));
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), eyeMat).translateX(0.1).translateY(1.75).translateZ(0.26));
+
+    // Floating hands (detached from body, positioned forward)
+    const handColor = 0x3a2a3a;
+    group.add(_box(0.12, 0.15, 0.12, handColor, -0.45, 1.1, 0.25));
+    group.add(_box(0.12, 0.15, 0.12, handColor, 0.45, 1.1, 0.25));
+
+    // Staff (in left hand)
+    group.add(_box(0.04, 1.0, 0.04, 0x3a2a1a, -0.45, 1.3, 0.25));
+    // Staff orb (glowing)
+    const orbMat = new THREE.MeshBasicMaterial({ color: 0x8800aa });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), orbMat).translateX(-0.45).translateY(1.85).translateZ(0.25));
+
+    // Dark aura (semi-transparent)
+    const auraMat = new THREE.MeshLambertMaterial({ color: 0x2a0a2a, transparent: true, opacity: 0.15 });
+    const aura = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.0, 0.8), auraMat);
+    aura.position.set(0, 1.2, 0);
+    aura.material._special = true;
+    group.add(aura);
+
+    group.userData.parts = { head, body, leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
+    return group;
+  }
+
+  // ===== CRYSTAL GOLEM — crystalline humanoid =====
+  _createCrystalGolemMesh(colors) {
+    const group = new THREE.Group();
+
+    // Body (large, crystalline)
+    const body = _box(0.7, 1.0, 0.4, 0x6644aa, 0, 1.1, 0);
+    body.userData.baseY = 1.1;
+    group.add(body);
+
+    // Head
+    const head = _box(0.5, 0.5, 0.5, 0x7755bb, 0, 1.95, 0);
+    head.userData.baseY = 1.95;
+    group.add(head);
+
+    // Glowing core inside chest
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xaa66ff });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), coreMat).translateY(1.1).translateZ(0.05));
+
+    // Crystal spikes on shoulders
+    group.add(_box(0.08, 0.25, 0.08, 0x8866cc, -0.45, 1.8, 0));
+    group.add(_box(0.08, 0.25, 0.08, 0x8866cc, 0.45, 1.8, 0));
+    // Crystal spikes on back
+    group.add(_box(0.1, 0.3, 0.08, 0x9977dd, -0.15, 1.6, -0.25));
+    group.add(_box(0.1, 0.25, 0.08, 0x9977dd, 0.15, 1.55, -0.25));
+    group.add(_box(0.08, 0.2, 0.08, 0xaa88ee, 0, 1.7, -0.28));
+
+    // Glowing eyes
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xcc88ff });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.02), eyeMat).translateX(-0.12).translateY(2.0).translateZ(0.26));
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.02), eyeMat).translateX(0.12).translateY(2.0).translateZ(0.26));
+
+    // Arms
+    const armColor = 0x5533aa;
+    const la = _box(0.2, 0.8, 0.2, armColor, -0.5, 1.2, 0);
+    la.geometry.translate(0, -0.4, 0);
+    group.add(la);
+    const ra = _box(0.2, 0.8, 0.2, armColor, 0.5, 1.2, 0);
+    ra.geometry.translate(0, -0.4, 0);
+    group.add(ra);
+
+    // Legs (short, thick)
+    const ll = _box(0.25, 0.5, 0.25, 0x4422aa, -0.18, 0.5, 0);
+    ll.geometry.translate(0, -0.25, 0);
+    group.add(ll);
+    const rl = _box(0.25, 0.5, 0.25, 0x4422aa, 0.18, 0.5, 0);
+    rl.geometry.translate(0, -0.25, 0);
+    group.add(rl);
+
+    group.userData.parts = { head, body, leftArm: la, rightArm: ra, leftLeg: ll, rightLeg: rl };
+    return group;
+  }
+
+  // ===== VOID WYRM — serpentine segmented body =====
+  _createVoidWyrmMesh(colors) {
+    const group = new THREE.Group();
+
+    // Large head
+    const head = _box(0.6, 0.5, 0.5, colors.head || 0x1a0a2a, 0, 1.6, 0.4);
+    head.userData.baseY = 1.6;
+    group.add(head);
+
+    // Glowing purple eyes
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xaa00ff });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.03), eyeMat).translateX(-0.15).translateY(1.7).translateZ(0.66));
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.03), eyeMat).translateX(0.15).translateY(1.7).translateZ(0.66));
+    // Pupil
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.02), new THREE.MeshBasicMaterial({ color: 0xff66ff })).translateX(-0.15).translateY(1.7).translateZ(0.68));
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.02), new THREE.MeshBasicMaterial({ color: 0xff66ff })).translateX(0.15).translateY(1.7).translateZ(0.68));
+
+    // Teeth
+    group.add(_box(0.04, 0.08, 0.03, 0xaa00ff, -0.1, 1.32, 0.62));
+    group.add(_box(0.04, 0.08, 0.03, 0xaa00ff, 0.1, 1.32, 0.62));
+
+    // Body: 5 segments decreasing in size
+    const body = _box(0.5, 0.45, 0.5, colors.body || 0x1a0a2a, 0, 1.4, 0);
+    body.userData.baseY = 1.4;
+    group.add(body);
+
+    const seg2 = _box(0.45, 0.4, 0.45, 0x2a1a3a, 0, 1.35, -0.5);
+    group.add(seg2);
+    const seg3 = _box(0.4, 0.35, 0.4, 0x2a1a3a, 0, 1.3, -1.0);
+    group.add(seg3);
+    const seg4 = _box(0.3, 0.3, 0.3, 0x3a2a4a, 0, 1.25, -1.4);
+    group.add(seg4);
+    const seg5 = _box(0.2, 0.2, 0.2, 0x3a2a4a, 0, 1.2, -1.7);
+    group.add(seg5);
+
+    // Tail fin (flat triangle)
+    group.add(_box(0.35, 0.08, 0.25, 0x4a2a5a, 0, 1.18, -1.95));
+
+    // Void tendrils (small dark boxes along body)
+    for (let i = 0; i < 4; i++) {
+      const tz = -0.3 - i * 0.4;
+      group.add(_box(0.06, 0.2, 0.04, 0x6600aa, 0.25, 1.3, tz));
+      group.add(_box(0.06, 0.2, 0.04, 0x6600aa, -0.25, 1.3, tz));
+    }
 
     group.userData.parts = { head, body, leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
     return group;

@@ -253,6 +253,7 @@ class Game {
     // Hand renderer (first-person arm + held item)
     if (this.hand) this.hand.dispose();
     this.hand = new HandRenderer(camera, scene);
+    this.player.hand = this.hand;
 
     // Apply starting upgrades
     if (this.meta.upgrades.stoneStart) {
@@ -402,6 +403,7 @@ class Game {
     // Hand renderer for home world
     if (this.hand) this.hand.dispose();
     this.hand = new HandRenderer(camera, scene);
+    this.player.hand = this.hand;
     this._syncHandItem();
 
     this.particles.clear();

@@ -75,6 +75,7 @@ export class Player {
     // Mining state
     this.miningProgress = 0;
     this._mineTargetKey = null;
+    this._mineSwingCooldown = 0;
 
     // Placing cooldown
     this._placeCooldown = 0;
@@ -132,51 +133,76 @@ export class Player {
   }
 
   /**
-   * Pre-generate 10 crack overlay stages with increasing line density.
-   * Each stage is a THREE.LineSegments that gets shown/hidden.
+   * Pre-generate 10 crack overlay stages with increasing coverage.
+   * Uses translucent textured box overlays for a Minecraft-like break effect.
    */
   _createCrackStages() {
     for (let stage = 0; stage <= 10; stage++) {
-      const positions = [];
-      if (stage > 0) {
-        // More lines at higher stages: 2 + stage*2 lines
-        const lineCount = 2 + stage * 2;
-        for (let i = 0; i < lineCount; i++) {
-          const face = Math.floor(Math.random() * 6);
-          const pts = this._generateCrackLine(face);
-          positions.push(...pts);
-        }
-        // Add cross-hatching at higher stages for density
-        if (stage >= 5) {
-          for (let i = 0; i < stage - 3; i++) {
-            const face = Math.floor(Math.random() * 6);
-            const pts = this._generateShortCrackLine(face);
-            positions.push(...pts);
-          }
-        }
-      }
-
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-
-      // Color darkens from reddish to black as cracks deepen
-      const darkness = stage / 10;
-      const r = 0.8 - darkness * 0.8;
-      const g = 0.2 - darkness * 0.2;
-      const b = 0.2 - darkness * 0.2;
-      const mat = new THREE.LineBasicMaterial({
-        color: new THREE.Color(r, g, b),
-        linewidth: 2,
+      const size = 1.01 + stage * 0.002;
+      const geo = new THREE.BoxGeometry(size, size, size);
+      const tex = this._createCrackTexture(stage);
+      const mats = Array.from({ length: 6 }, () => new THREE.MeshBasicMaterial({
+        map: tex,
         transparent: true,
-        opacity: stage === 0 ? 0 : (0.4 + stage * 0.06),
-        depthTest: true,
-      });
-
-      const mesh = new THREE.LineSegments(geo, mat);
+        opacity: stage === 0 ? 0 : 0.18 + stage * 0.065,
+        depthWrite: false,
+      }));
+      const mesh = new THREE.Mesh(geo, mats);
       mesh.visible = false;
-      mesh.position.set(0.5, 0.5, 0.5);
+      mesh.renderOrder = 20;
       this._crackOverlays.push(mesh);
     }
+  }
+
+  _createCrackTexture(stage) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 32, 32);
+    if (stage <= 0) return new THREE.CanvasTexture(canvas);
+
+    const alpha = 0.22 + stage * 0.05;
+    ctx.strokeStyle = `rgba(20, 20, 20, ${Math.min(alpha, 0.85)})`;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'square';
+
+    const lines = [
+      [6, 4, 11, 11], [11, 11, 9, 18], [9, 18, 13, 27],
+      [21, 3, 18, 10], [18, 10, 23, 17], [23, 17, 21, 27],
+      [4, 14, 12, 15], [12, 15, 18, 13], [18, 13, 28, 15],
+      [8, 24, 15, 22], [15, 22, 24, 24], [14, 7, 17, 14],
+      [17, 14, 16, 21], [25, 9, 27, 14], [27, 14, 25, 20],
+    ];
+    const count = Math.min(lines.length, 2 + stage);
+    for (let i = 0; i < count; i++) {
+      const [x1, y1, x2, y2] = lines[i];
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    if (stage >= 4) {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(0, 0, 0, ${Math.min(0.18 + stage * 0.04, 0.65)})`;
+      const micro = [
+        [5, 9, 8, 12], [19, 8, 22, 11], [10, 19, 13, 22],
+        [21, 21, 24, 24], [14, 14, 18, 16], [7, 26, 10, 28],
+      ];
+      const microCount = Math.min(micro.length, stage - 2);
+      for (let i = 0; i < microCount; i++) {
+        const [x1, y1, x2, y2] = micro[i];
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
   }
 
   /**
@@ -237,29 +263,19 @@ export class Player {
   }
 
   /**
-   * Regenerate crack patterns for a specific stage (randomized each update).
+   * Refresh crack texture for a specific stage.
    */
   _regenerateCracks(stage) {
     const overlay = this._crackOverlays[stage];
     if (!overlay) return;
-
-    const positions = [];
-    const lineCount = 2 + stage * 2;
-    for (let i = 0; i < lineCount; i++) {
-      const face = Math.floor(Math.random() * 6);
-      positions.push(...this._generateCrackLine(face));
+    const tex = this._createCrackTexture(stage);
+    const materials = Array.isArray(overlay.material) ? overlay.material : [overlay.material];
+    for (const mat of materials) {
+      if (mat.map) mat.map.dispose?.();
+      mat.map = tex;
+      mat.opacity = stage === 0 ? 0 : 0.18 + stage * 0.065;
+      mat.needsUpdate = true;
     }
-    if (stage >= 5) {
-      for (let i = 0; i < stage - 3; i++) {
-        const face = Math.floor(Math.random() * 6);
-        positions.push(...this._generateShortCrackLine(face));
-      }
-    }
-
-    overlay.geometry.dispose();
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    overlay.geometry = geo;
   }
 
   _updateCrackOverlay(pos, level) {
@@ -316,6 +332,7 @@ export class Player {
     dt = Math.min(dt, 0.1);
 
     if (this._placeCooldown > 0) this._placeCooldown -= dt;
+    if (this._mineSwingCooldown > 0) this._mineSwingCooldown -= dt;
 
     // Spawn protection countdown
     if (this._spawnProtection > 0) this._spawnProtection -= dt;
@@ -586,11 +603,21 @@ export class Player {
       // Increment progress: dt / (hardness * toolMult)
       this.miningProgress += dt / (hardness * toolMult);
 
+      // Subtle mining punch cadence while holding the button.
+      if (this.hand && this._mineSwingCooldown <= 0) {
+        const held = this.inventory.getSlot(this.selectedSlot);
+        const heldDef = held ? getItem(held.id) : null;
+        const swingType = heldDef && isTool(heldDef.type) ? heldDef.type : 'hand';
+        this.hand.swingAttack(swingType === 'sword' ? 'hand' : swingType);
+        this._mineSwingCooldown = swingType === 'pickaxe' || swingType === 'axe' ? 0.18 : 0.14;
+      }
+
       // Update block crack overlay
       const crackLevel = Math.floor(this.miningProgress * 10);
       if (crackLevel !== this._crackLevel) {
         this._crackLevel = crackLevel;
         this._updateCrackOverlay(target.pos, crackLevel);
+        if (crackLevel > 0 && crackLevel < 10) this._emitMiningDust(target.pos, target.blockId, crackLevel);
       }
 
       if (this.miningProgress >= 1.0) {
@@ -694,6 +721,45 @@ export class Player {
       if (statKey) {
         window.game.runStats[statKey] = (window.game.runStats[statKey] || 0) + 1;
       }
+    }
+  }
+
+  /**
+   * Emit a few light dust particles while mining, before the final break burst.
+   */
+  _emitMiningDust(pos, blockId, crackLevel = 1) {
+    const blockColors = {
+      1: 0x8B6914, 2: 0x6B8C42, 3: 0x8B7355, 4: 0x808080, 5: 0x808080,
+      6: 0x8B6914, 7: 0x404040, 10: 0x8B6914, 11: 0x228B22, 12: 0xD2B48C,
+      13: 0x808080, 14: 0xFFD700, 15: 0xC0C0C0, 16: 0x404040, 17: 0x4AEDD9,
+      18: 0x444444, 19: 0xB22222, 20: 0x4B0082, 21: 0x00CED1, 22: 0xF5F5DC,
+    };
+    const color = blockColors[blockId] || 0x888888;
+    const count = 2 + Math.min(3, Math.floor(crackLevel / 3));
+    const center = new THREE.Vector3(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
+
+    for (let i = 0; i < count; i++) {
+      const size = 0.02 + Math.random() * 0.03;
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(size, size, size),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 })
+      );
+      mesh.position.set(
+        center.x + (Math.random() - 0.5) * 0.55,
+        center.y + (Math.random() - 0.5) * 0.55,
+        center.z + 0.35 + Math.random() * 0.18,
+      );
+      this.scene.add(mesh);
+      this._breakParticles.push({
+        mesh,
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 1.2,
+          0.4 + Math.random() * 0.8,
+          (Math.random() - 0.5) * 1.2,
+        ),
+        age: 0,
+        lifetime: 0.18 + Math.random() * 0.1,
+      });
     }
   }
 
