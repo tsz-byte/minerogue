@@ -682,6 +682,9 @@ export class MobManager {
     // Apply mob texture atlas to the body mesh
     this._applyMobTexture(mesh, type);
 
+    // Add programmatic visual details (overlays, decorations, glows)
+    this._addMobDetails(mesh, type, colors);
+
     mesh.scale.set(scale, scale, scale);
     return mesh;
   }
@@ -708,6 +711,323 @@ export class MobManager {
       uvs.needsUpdate = true;
       part.material = new THREE.MeshLambertMaterial({ map: this._mobTextureAtlas });
     }
+  }
+
+  _addMobDetails(group, type, colors) {
+    const parts = group.userData?.parts;
+    if (!parts) return;
+
+    switch (type) {
+      case 'zombie': {
+        // Ripped green skin patches on arms
+        if (parts.leftArm)
+          group.add(_box(0.08, 0.15, 0.03, 0x2a5a2a, -0.375, 1.2, 0.13));
+        if (parts.rightArm)
+          group.add(_box(0.08, 0.15, 0.03, 0x2a5a2a, 0.375, 1.0, 0.13));
+        // Tattered clothing patches on body
+        group.add(_box(0.15, 0.12, 0.02, 0x6a4a2a, -0.1, 1.1, 0.13));
+        group.add(_box(0.12, 0.1, 0.02, 0x6a4a2a, 0.15, 0.9, 0.13));
+        break;
+      }
+      case 'skeleton': {
+        // Ribcage detail (3 horizontal white lines on body front)
+        for (let i = 0; i < 3; i++) {
+          const ribY = 1.1 + i * 0.12;
+          group.add(_box(0.35, 0.03, 0.02, 0xeeeedd, 0, ribY, 0.13));
+        }
+        // Skull eye sockets (dark insets on head front)
+        group.add(_box(0.1, 0.08, 0.02, 0x1a1a1a, -0.1, 1.8, 0.26));
+        group.add(_box(0.1, 0.08, 0.02, 0x1a1a1a, 0.1, 1.8, 0.26));
+        break;
+      }
+      case 'creeper': {
+        // Iconic face pattern on head front: dark L-shape eyes + mouth
+        group.add(_box(0.1, 0.1, 0.02, 0x1a1a1a, -0.1, 1.82, 0.26));
+        group.add(_box(0.1, 0.1, 0.02, 0x1a1a1a, 0.1, 1.82, 0.26));
+        group.add(_box(0.08, 0.15, 0.02, 0x1a1a1a, -0.14, 1.68, 0.26));
+        group.add(_box(0.08, 0.15, 0.02, 0x1a1a1a, 0.14, 1.68, 0.26));
+        group.add(_box(0.2, 0.08, 0.02, 0x1a1a1a, 0, 1.58, 0.26));
+        group.add(_box(0.08, 0.1, 0.02, 0x1a1a1a, 0, 1.65, 0.26));
+        break;
+      }
+      case 'spider':
+      case 'cave_spider':
+      case 'spider_queen': {
+        // Hair tufts on body
+        for (let i = 0; i < 4; i++) {
+          const angle = (i / 4) * Math.PI * 2;
+          group.add(_box(0.06, 0.12, 0.06, 0x1a1a1a,
+            Math.cos(angle) * 0.55, 0.65, Math.sin(angle) * 0.45 - 0.3));
+        }
+        // Red eye glow (self-illuminated, already present but reinforce)
+        break;
+      }
+      case 'enderman': {
+        // Purple particle glow around eyes (wider aura)
+        const auraMat = new THREE.MeshBasicMaterial({ color: 0x9900ff, transparent: true, opacity: 0.2 });
+        const auraGeo = new THREE.BoxGeometry(0.5, 0.2, 0.12);
+        const aura = new THREE.Mesh(auraGeo, auraMat);
+        aura.position.set(0, 2.25, 0.3);
+        aura.material._special = true;
+        group.add(aura);
+        break;
+      }
+      case 'witch': {
+        // Hat on head (stacked decreasing boxes)
+        const hatBrim = _box(0.7, 0.05, 0.7, 0x2a1a2a, 0, 2.05, 0);
+        group.add(hatBrim);
+        const hatMid = _box(0.5, 0.2, 0.5, 0x2a1a2a, 0, 2.15, 0);
+        group.add(hatMid);
+        const hatTop = _box(0.3, 0.15, 0.3, 0x2a1a2a, 0, 2.3, 0);
+        group.add(hatTop);
+        // Nose protrusion
+        group.add(_box(0.08, 0.08, 0.12, 0x6a4a5a, 0, 1.72, 0.3));
+        // Potion bottle glow
+        const potionMat = new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0.6 });
+        potionMat._special = true;
+        const potionGeo = new THREE.BoxGeometry(0.1, 0.15, 0.1);
+        const potion = new THREE.Mesh(potionGeo, potionMat);
+        potion.position.set(0.4, 1.0, 0.1);
+        group.add(potion);
+        break;
+      }
+      case 'phantom': {
+        // Translucent blue body
+        group.traverse(child => {
+          if (child.isMesh && child.material && !child.material._special) {
+            child.material.transparent = true;
+            child.material.opacity = 0.7;
+            child.material.color.setHex(0x5a6a8a);
+          }
+        });
+        // Glowing green eyes
+        const pEyeMat = new THREE.MeshBasicMaterial({ color: 0x44ff44 });
+        pEyeMat._special = true;
+        for (const x of [-0.1, 0.1]) {
+          const eyeGeo = new THREE.BoxGeometry(0.08, 0.06, 0.02);
+          const eye = new THREE.Mesh(eyeGeo, pEyeMat);
+          eye.position.set(x, 0.55, 0.26);
+          group.add(eye);
+        }
+        break;
+      }
+      case 'slime': {
+        // Already handled with _special translucent material in _createSlimeMesh
+        // Add white eye highlights on top cube
+        group.add(_box(0.12, 0.12, 0.02, 0xffffff, -0.1, 1.82, 0.26));
+        group.add(_box(0.12, 0.12, 0.02, 0xffffff, 0.1, 1.82, 0.26));
+        group.add(_box(0.06, 0.06, 0.01, 0x111111, -0.1, 1.82, 0.27));
+        group.add(_box(0.06, 0.06, 0.01, 0x111111, 0.1, 1.82, 0.27));
+        break;
+      }
+      case 'cow': {
+        // Brown body with white spots (randomized)
+        for (let i = 0; i < 4; i++) {
+          group.add(_box(0.2, 0.2, 0.02, 0xeeeedd,
+            (Math.random() - 0.5) * 0.6, 1.0 + (Math.random() - 0.5) * 0.3, 0.61));
+        }
+        break;
+      }
+      case 'pig': {
+        // Darker pink snout
+        group.add(_box(0.25, 0.18, 0.1, 0xcc8080, 0, 1.05, 0.75));
+        // Nostrils
+        group.add(_box(0.04, 0.04, 0.02, 0x8a5a5a, -0.05, 1.05, 0.8));
+        group.add(_box(0.04, 0.04, 0.02, 0x8a5a5a, 0.05, 1.05, 0.8));
+        // Small ears
+        group.add(_box(0.12, 0.1, 0.04, 0xdd9090, -0.2, 1.35, 0.55));
+        group.add(_box(0.12, 0.1, 0.04, 0xdd9090, 0.2, 1.35, 0.55));
+        break;
+      }
+      case 'sheep': {
+        // Fluffy wool (slightly larger body box with offset)
+        const woolMat = new THREE.MeshLambertMaterial({ color: 0xf0f0f0 });
+        woolMat._special = true;
+        const woolGeo = new THREE.BoxGeometry(0.9, 0.7, 1.3);
+        const wool = new THREE.Mesh(woolGeo, woolMat);
+        wool.position.set(0, 1.05, 0);
+        group.add(wool);
+        break;
+      }
+      case 'crystal_golem': {
+        // Purple crystal shards protruding from shoulders and head
+        const shardMat = new THREE.MeshBasicMaterial({ color: 0xaa66ff, transparent: true, opacity: 0.8 });
+        shardMat._special = true;
+        for (const [sx, sy, sz, rx] of [
+          [-0.35, 1.7, 0, 0.3], [0.35, 1.7, 0, -0.3],
+          [-0.2, 2.1, 0, 0.5], [0.2, 2.1, 0, -0.5],
+        ]) {
+          const geo = new THREE.BoxGeometry(0.1, 0.25, 0.1);
+          const shard = new THREE.Mesh(geo, shardMat);
+          shard.position.set(sx, sy, sz);
+          shard.rotation.z = rx;
+          group.add(shard);
+        }
+        break;
+      }
+      case 'necromancer': {
+        // Dark hood enclosing head
+        const hoodMat = new THREE.MeshLambertMaterial({ color: 0x1a0a1a });
+        hoodMat._special = true;
+        const hoodGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+        const hood = new THREE.Mesh(hoodGeo, hoodMat);
+        hood.position.set(0, 1.8, 0);
+        group.add(hood);
+        // Red glowing eyes
+        const nEyeMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+        nEyeMat._special = true;
+        for (const x of [-0.1, 0.1]) {
+          const geo = new THREE.BoxGeometry(0.08, 0.05, 0.02);
+          const eye = new THREE.Mesh(geo, nEyeMat);
+          eye.position.set(x, 1.82, 0.3);
+          group.add(eye);
+        }
+        break;
+      }
+      case 'void_wyrm': {
+        // Segmented serpentine body (extra segments behind main body)
+        for (let i = 1; i <= 3; i++) {
+          const segColor = new THREE.Color(0x1a0a2a).lerp(new THREE.Color(0x6622aa), i * 0.15);
+          group.add(_box(0.45 - i * 0.05, 0.4, 0.4, segColor.getHex(), 0, 0.5, -i * 0.45));
+        }
+        // Purple glow around head
+        const wGlowMat = new THREE.MeshBasicMaterial({ color: 0xaa00ff, transparent: true, opacity: 0.25 });
+        wGlowMat._special = true;
+        const wGlowGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+        const wGlow = new THREE.Mesh(wGlowGeo, wGlowMat);
+        wGlow.position.set(0, 0.5, 0.3);
+        group.add(wGlow);
+        break;
+      }
+    }
+  }
+
+  _generateBodyTexture(type, width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const colors = MOB_COLORS[type] || { body: 0xaaaaaa, head: 0xbbbbbb };
+
+    // Fill with body color
+    const bodyHex = '#' + colors.body.toString(16).padStart(6, '0');
+    ctx.fillStyle = bodyHex;
+    ctx.fillRect(0, 0, width, height);
+
+    // Add shading (lighter top-left, darker bottom-right for 3D effect)
+    const grad = ctx.createLinearGradient(0, 0, width, height);
+    grad.addColorStop(0, 'rgba(255,255,255,0.15)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.2)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Type-specific details drawn on the canvas
+    if (type === 'creeper') {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(4, 4, 3, 3);
+      ctx.fillRect(9, 4, 3, 3);
+      ctx.fillRect(6, 8, 4, 2);
+      ctx.fillRect(5, 10, 2, 2);
+      ctx.fillRect(9, 10, 2, 2);
+      ctx.fillRect(7, 10, 2, 3);
+    } else if (type === 'zombie') {
+      ctx.fillStyle = '#2a5a2a';
+      ctx.fillRect(2, 6, 4, 4);
+      ctx.fillRect(10, 8, 4, 3);
+    } else if (type === 'skeleton') {
+      ctx.fillStyle = '#eeeecc';
+      for (let i = 0; i < 3; i++) ctx.fillRect(2, 4 + i * 3, 12, 1);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(4, 1, 3, 2);
+      ctx.fillRect(9, 1, 3, 2);
+    } else if (type === 'spider' || type === 'cave_spider' || type === 'spider_queen') {
+      ctx.fillStyle = '#1a1a1a';
+      for (let i = 0; i < 6; i++) {
+        ctx.fillRect(1 + i * 2, 2, 1, 4);
+        ctx.fillRect(1 + i * 2, 10, 1, 4);
+      }
+    } else if (type === 'enderman') {
+      ctx.fillStyle = '#9900ff';
+      ctx.fillRect(3, 5, 4, 2);
+      ctx.fillRect(9, 5, 4, 2);
+    } else if (type === 'cow') {
+      ctx.fillStyle = '#3a2a10';
+      for (let i = 0; i < 3; i++) {
+        ctx.fillRect(2 + i * 4, 4 + (i % 2) * 4, 3, 3);
+      }
+    } else if (type === 'pig') {
+      ctx.fillStyle = '#cc8080';
+      ctx.fillRect(5, 6, 6, 4);
+    } else if (type === 'sheep') {
+      ctx.fillStyle = '#f0f0f0';
+      for (let i = 0; i < 8; i++) {
+        ctx.fillRect(1 + (i % 4) * 4, 1 + Math.floor(i / 4) * 7, 3, 6);
+      }
+    } else if (type === 'witch') {
+      ctx.fillStyle = '#3a2a3a';
+      ctx.fillRect(0, 0, 16, 4);
+      ctx.fillRect(3, 4, 10, 2);
+    } else if (type === 'phantom') {
+      ctx.fillStyle = '#5a6a8a';
+      ctx.globalAlpha = 0.7;
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = '#44ff44';
+      ctx.fillRect(4, 3, 3, 2);
+      ctx.fillRect(9, 3, 3, 2);
+    } else if (type === 'slime') {
+      ctx.fillStyle = '#66cc66';
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(2, 2, 12, 12);
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(4, 4, 2, 2);
+      ctx.fillRect(10, 4, 2, 2);
+    } else if (type === 'crystal_golem') {
+      ctx.fillStyle = '#aa66ff';
+      ctx.fillRect(1, 0, 3, 5);
+      ctx.fillRect(12, 0, 3, 5);
+      ctx.fillRect(6, 2, 4, 3);
+    } else if (type === 'necromancer') {
+      ctx.fillStyle = '#1a0a1a';
+      ctx.fillRect(0, 0, 16, 6);
+      ctx.fillStyle = '#ff2200';
+      ctx.fillRect(4, 4, 3, 2);
+      ctx.fillRect(9, 4, 3, 2);
+    } else if (type === 'void_wyrm') {
+      ctx.fillStyle = '#6622aa';
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(2 + i * 3, 6, 2, 4);
+      }
+      ctx.fillStyle = '#aa00ff';
+      ctx.fillRect(4, 2, 3, 2);
+      ctx.fillRect(9, 2, 3, 2);
+    } else if (type === 'husk') {
+      ctx.fillStyle = '#7a6a4a';
+      ctx.fillRect(2, 6, 4, 4);
+      ctx.fillRect(10, 8, 4, 3);
+    } else if (type === 'mimic') {
+      ctx.fillStyle = '#a07820';
+      ctx.fillRect(2, 10, 12, 4);
+      ctx.fillStyle = '#444';
+      ctx.fillRect(6, 8, 4, 2);
+    } else if (type === 'corrupted_champion') {
+      ctx.fillStyle = '#5a2a5a';
+      ctx.fillRect(2, 4, 12, 8);
+      ctx.fillStyle = '#ff00ff';
+      ctx.fillRect(5, 5, 2, 2);
+      ctx.fillRect(9, 5, 2, 2);
+    } else if (type === 'giant_zombie') {
+      ctx.fillStyle = '#2a5a2a';
+      ctx.fillRect(2, 6, 4, 4);
+      ctx.fillRect(10, 8, 4, 3);
+    } else if (type === 'harpy') {
+      ctx.fillStyle = '#aa8a6a';
+      ctx.fillRect(1, 2, 5, 8);
+      ctx.fillRect(10, 2, 5, 8);
+    }
+
+    return new THREE.CanvasTexture(canvas);
   }
 
   _createHumanoidMesh(colors, type) {
