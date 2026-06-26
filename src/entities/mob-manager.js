@@ -691,33 +691,22 @@ export class MobManager {
     const parts = group.userData?.parts;
     if (!parts) return;
 
-    // Only apply atlas textures to mobs with proper dedicated textures
-    // Humanoid mobs (zombie, skeleton, enderman, witch, etc.) look better with colored materials
-    const ATLAS_TYPES = new Set([
-      'chicken', 'spider', 'cave_spider', 'spider_queen',
-      'cow', 'pig', 'sheep', 'slime',
-    ]);
-    if (!ATLAS_TYPES.has(type)) return;
-
-    // Apply textured material to the body
-    // Body/arms/legs keep their original MOB_COLORS.
-    const head = parts.head;
-    if (head && head.geometry && !head.material._special) {
-      const geo = head.geometry;
-      const uvs = geo.attributes.uv;
-      if (uvs) {
-        const faceOrder = [3, 2, 4, 5, 0, 1];
-        for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
-          const uv = getMobFaceUV(type, faceOrder[faceIdx]);
-          const v = faceIdx * 4;
-          uvs.setXY(v, uv.u0, uv.v0);
-          uvs.setXY(v + 1, uv.u1, uv.v0);
-          uvs.setXY(v + 2, uv.u1, uv.v1);
-          uvs.setXY(v + 3, uv.u0, uv.v1);
-        }
-        uvs.needsUpdate = true;
-        head.material = new THREE.MeshLambertMaterial({ map: this._mobTextureAtlas });
+    const faceOrder = [3, 2, 4, 5, 0, 1];
+    for (const partName of Object.keys(parts)) {
+      const part = parts[partName];
+      if (!part || !part.geometry || part.material?._special) continue;
+      const uvs = part.geometry.attributes.uv;
+      if (!uvs) continue;
+      for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
+        const uv = getMobFaceUV(type, faceOrder[faceIdx]);
+        const v = faceIdx * 4;
+        uvs.setXY(v, uv.u0, uv.v0);
+        uvs.setXY(v + 1, uv.u1, uv.v0);
+        uvs.setXY(v + 2, uv.u1, uv.v1);
+        uvs.setXY(v + 3, uv.u0, uv.v1);
       }
+      uvs.needsUpdate = true;
+      part.material = new THREE.MeshLambertMaterial({ map: this._mobTextureAtlas });
     }
   }
 
