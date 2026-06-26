@@ -243,10 +243,17 @@ export class MenuManager {
   showDeathScreen(stats, shards) {
     this._show(this.deathScreen);
     if (this.deathStatsEl) {
+      // Calculate time survived
+      const elapsed = stats.time || '0m 0s';
+      const distTraveled = stats.distanceTraveled != null ? Math.floor(stats.distanceTraveled) : null;
+      const crafts = stats.craftsDone ?? 0;
+
       this.deathStatsEl.innerHTML = [
-        stats.time ? `Time: ${stats.time}` : null,
+        `⏱ Time Survived: ${elapsed}`,
         `Mobs Killed: ${stats.mobsKilled ?? 0}`,
         `Blocks Mined: ${stats.blocksMined ?? 0}`,
+        crafts > 0 ? `🔨 Items Crafted: ${crafts}` : null,
+        distTraveled != null ? `🏃 Distance: ${distTraveled}m` : null,
         `Depth: Floor ${stats.depth ?? 1}`,
         stats.bossesKilled != null ? `Bosses: ${stats.bossesKilled}` : null,
       ].filter(Boolean).join('<br>');

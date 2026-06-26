@@ -113,6 +113,7 @@ export class HandRenderer {
     this._swingDuration = 0;
     this._swingAngle = 0;
     this._isSwinging = false;
+    this._swingToolType = null;
     this._bobPhase = 0;
     this._bobAmount = 0;
     this._currentItemId = null;

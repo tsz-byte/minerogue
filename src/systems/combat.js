@@ -120,7 +120,11 @@ export class CombatSystem {
 
       // JUICE
       this._hitstopTimer = (isKill ? 100 : (isCrit ? 80 : 30)) / 1000;
-      this.player.addCameraShake(isKill ? 0.4 : (isCrit ? 0.3 : 0.15));
+      this.player.addCameraShake(isKill ? 0.4 : (isCrit ? 0.35 : 0.15));
+      // Extra screen shake on crit for impact feel
+      if (isCrit && !isKill) {
+        this.player.addCameraShake(0.25);
+      }
 
       const hitPos = mob.position.clone().add(new THREE.Vector3(0, 0.9, 0));
       const pCount = isKill ? 12 : (isCrit ? 8 : 5);
@@ -128,9 +132,14 @@ export class CombatSystem {
       const pColor = isCrit ? 0xffff00 : mobColor;
       this.particles.emit(hitPos, { count: pCount, color: hexToColor(pColor), spread: isCrit ? 0.3 : 0.2, life: 0.5, gravity: -5 });
 
+      if (isCrit) {
+        // Extra burst of yellow sparks on crit
+        this.particles.emit(hitPos, { count: 6, color: hexToColor(0xffffff), spread: 0.4, life: 0.3, gravity: -8 });
+      }
+
       if (isKill) {
         this.particles.emit(hitPos, { count: 20, color: hexToColor(mobColor), spread: 0.4, life: 0.8, gravity: -6 });
-        this._slowmoTimer = 0.2; this._slowmoSpeed = 0.5;
+        this._slowmoTimer = 0.3; this._slowmoSpeed = 0.4;
       }
 
       this.damageNumbers.spawn(finalDmg, isCrit, false, hitPos, this.camera);
@@ -254,8 +263,9 @@ export class CombatSystem {
     const playerDmgTakenMult = (mods.playerDamageTakenMultiplier ?? 1);
     const effectiveMobDmg = Math.floor(mobDmg * mobDmgMult * playerDmgTakenMult);
     const finalDmg = this.player.takeDamage(effectiveMobDmg);
-    this._redVignetteOpacity = 0.6;
-    this.player.addCameraShake(0.25);
+    // Red flash scales with damage — more damage = more intense vignette
+    this._redVignetteOpacity = Math.min(1.0, 0.4 + (finalDmg / 10) * 0.6);
+    this.player.addCameraShake(0.2 + finalDmg * 0.02);
     const hitPos = this.player.getEyePosition();
     this.particles.emit(hitPos, { count: 4, color: '#ff0000', spread: 0.16, life: 0.3, gravity: -5 });
     this.damageNumbers.spawn(finalDmg ?? mobDmg, false, true, hitPos, this.camera);

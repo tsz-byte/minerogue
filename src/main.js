@@ -1,4 +1,5 @@
 // main.js — MineRogue Game Loop & State Machine
+import * as THREE from 'three';
 import { GameRenderer } from './engine/renderer.js';
 import { InputManager } from './engine/input.js';
 import { World } from './world/world.js';
@@ -501,6 +502,8 @@ class Game {
       blocksMined: this.runStats.blocksMined,
       depth: this.runStats.depth,
       bossesKilled: this.runStats.bossesKilled,
+      craftsDone: this.runStats.craftsDone,
+      distanceTraveled: this.runStats.distanceTraveled,
     }, totalShards);
   }
 
@@ -792,6 +795,36 @@ class Game {
         this.hud.showBlockInfo(blockDef?.name || '');
       } else {
         this.hud.showBlockInfo('');
+      }
+
+      // Crosshair color feedback
+      const crosshairEl = document.getElementById('crosshair');
+      if (crosshairEl) {
+        const INTERACTABLE_BLOCKS = new Set([31, 29, 30, 59]); // chest, crafting table, furnace, shrine
+        let crosshairColor = '#fff'; // default white
+
+        if (target && INTERACTABLE_BLOCKS.has(target.blockId)) {
+          crosshairColor = '#ff0'; // yellow for interactable blocks
+        } else if (this.mobManager?.mobs) {
+          // Check if looking at a mob (within attack range)
+          const eyePos = this.player.getEyePosition();
+          const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(
+            this.player.camera.getWorldQuaternion(new THREE.Quaternion())
+          );
+          for (const mob of this.mobManager.mobs) {
+            if (!mob.mesh) continue;
+            const toMob = mob.mesh.position.clone().sub(eyePos);
+            const dot = toMob.dot(dir);
+            if (dot > 0 && dot < 6) {
+              const perpDist = toMob.clone().addScaledVector(dir, -dot).length();
+              if (perpDist < 1.0) {
+                crosshairColor = '#f44'; // red for mobs
+                break;
+              }
+            }
+          }
+        }
+        crosshairEl.style.color = crosshairColor;
       }
 
       // Mining progress

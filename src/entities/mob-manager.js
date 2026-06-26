@@ -693,7 +693,7 @@ export class MobManager {
 
     // Apply textured material to the body
     const body = parts.body;
-    if (body && body.geometry) {
+    if (body && body.geometry && !body.material._special) {
       const geo = body.geometry;
       const uvs = geo.attributes.uv;
       if (uvs) {
@@ -715,7 +715,7 @@ export class MobManager {
 
     // Apply textured material to the head
     const head = parts.head;
-    if (head && head.geometry) {
+    if (head && head.geometry && !head.material._special) {
       const geo = head.geometry;
       const uvs = geo.attributes.uv;
       if (uvs) {
@@ -737,44 +737,112 @@ export class MobManager {
   _createHumanoidMesh(colors, type) {
     const group = new THREE.Group();
 
-    const head = _box(0.5, 0.5, 0.5, colors.head, 0, 1.75, 0);
-    head.userData.baseY = 1.75;
+    // ===== ENDERMAN: 1.5x taller, long arms =====
+    const isEnderman = type === 'enderman';
+    const isSkeleton = type === 'skeleton';
+    const isCreeper = type === 'creeper';
+    const heightMul = isEnderman ? 1.5 : 1.0;
+
+    // Head
+    const head = _box(0.5, 0.5, 0.5, colors.head, 0, 1.75 * heightMul, 0);
+    head.userData.baseY = 1.75 * heightMul;
     group.add(head);
 
-    const body = _box(0.5, 0.75, 0.25, colors.body, 0, 1.0, 0);
-    body.userData.baseY = 1.0;
+    // Body
+    const body = _box(0.5, 0.75 * heightMul, 0.25, colors.body, 0, 1.0 * heightMul, 0);
+    body.userData.baseY = 1.0 * heightMul;
     group.add(body);
 
-    // Arms (pivot at shoulder)
-    const leftArm = _box(0.25, 0.75, 0.25, colors.body, -0.375, 1.375, 0);
-    leftArm.geometry.translate(0, -0.375, 0);
+    // Arms
+    const armLength = isEnderman ? 1.1 : 0.75;
+    const armY = (isEnderman ? 1.6 : 1.375) * heightMul;
+    const armWidth = isSkeleton ? 0.12 : 0.25;
+    const armColor = isSkeleton ? 0xd0d0c0 : colors.body;
+
+    const leftArm = _box(armWidth, armLength * heightMul, armWidth, armColor, -0.375, armY, 0);
+    leftArm.geometry.translate(0, -(armLength * heightMul) / 2, 0);
     group.add(leftArm);
 
-    const rightArm = _box(0.25, 0.75, 0.25, colors.body, 0.375, 1.375, 0);
-    rightArm.geometry.translate(0, -0.375, 0);
+    const rightArm = _box(armWidth, armLength * heightMul, armWidth, armColor, 0.375, armY, 0);
+    rightArm.geometry.translate(0, -(armLength * heightMul) / 2, 0);
     group.add(rightArm);
 
-    // Legs (pivot at hip)
-    const leftLeg = _box(0.25, 0.75, 0.25, colors.body, -0.125, 0.75, 0);
-    leftLeg.geometry.translate(0, -0.375, 0);
+    // Legs (or short legs for creeper)
+    const legHeight = isCreeper ? 0.35 : 0.75;
+    const legWidth = isSkeleton ? 0.12 : (isCreeper ? 0.2 : 0.25);
+    const legColor = isSkeleton ? 0xd0d0c0 : colors.body;
+    const legY = isCreeper ? 0.35 : 0.75;
+
+    const leftLeg = _box(legWidth, legHeight, legWidth, legColor, -0.125, legY, 0);
+    leftLeg.geometry.translate(0, -legHeight / 2, 0);
     group.add(leftLeg);
 
-    const rightLeg = _box(0.25, 0.75, 0.25, colors.body, 0.125, 0.75, 0);
-    rightLeg.geometry.translate(0, -0.375, 0);
+    const rightLeg = _box(legWidth, legHeight, legWidth, legColor, 0.125, legY, 0);
+    rightLeg.geometry.translate(0, -legHeight / 2, 0);
     group.add(rightLeg);
 
-    // Enderman eyes
-    if (type === 'enderman') {
-      group.add(_box(0.12, 0.06, 0.02, colors.eyes || 0x9900ff, -0.1, 1.8, 0.26));
-      group.add(_box(0.12, 0.06, 0.02, colors.eyes || 0x9900ff, 0.1, 1.8, 0.26));
+    // Creeper: 4 short legs (front pair)
+    if (isCreeper) {
+      const frontLeftLeg = _box(0.2, 0.35, 0.2, colors.body, -0.125, 0.35, 0.15);
+      frontLeftLeg.geometry.translate(0, -0.175, 0);
+      group.add(frontLeftLeg);
+      const frontRightLeg = _box(0.2, 0.35, 0.2, colors.body, 0.125, 0.35, 0.15);
+      frontRightLeg.geometry.translate(0, -0.175, 0);
+      group.add(frontRightLeg);
     }
 
-    // Creeper face
-    if (type === 'creeper') {
+    // ===== ENDERMAN: glowing purple eyes + particle aura =====
+    if (isEnderman) {
+      const eyeMat = new THREE.MeshBasicMaterial({ color: colors.eyes || 0x9900ff });
+      for (const x of [-0.1, 0.1]) {
+        const eyeGeo = new THREE.BoxGeometry(0.12, 0.06, 0.02);
+        const eye = new THREE.Mesh(eyeGeo, eyeMat);
+        eye.position.set(x, 1.8 * heightMul, 0.26);
+        group.add(eye);
+      }
+      // Purple particle aura around eyes
+      const particleMat = new THREE.MeshBasicMaterial({ color: 0x9900ff, transparent: true, opacity: 0.3 });
+      const particleGeo = new THREE.BoxGeometry(0.4, 0.15, 0.1);
+      const particle = new THREE.Mesh(particleGeo, particleMat);
+      particle.position.set(0, 1.8 * heightMul, 0.3);
+      group.add(particle);
+    }
+
+    // ===== CREEPER: iconic face pattern =====
+    if (isCreeper) {
       const fc = colors.face || 0x222222;
-      group.add(_box(0.08, 0.08, 0.02, fc, -0.1, 1.82, 0.26));
-      group.add(_box(0.08, 0.08, 0.02, fc, 0.1, 1.82, 0.26));
-      group.add(_box(0.15, 0.12, 0.02, fc, 0, 1.65, 0.26));
+      // Eyes
+      group.add(_box(0.1, 0.1, 0.02, fc, -0.1, 1.82, 0.26));
+      group.add(_box(0.1, 0.1, 0.02, fc, 0.1, 1.82, 0.26));
+      // Nose/mouth area (the iconic C-shape)
+      group.add(_box(0.1, 0.15, 0.02, fc, 0, 1.68, 0.26));
+      group.add(_box(0.2, 0.08, 0.02, fc, 0, 1.58, 0.26));
+      group.add(_box(0.08, 0.2, 0.02, fc, -0.14, 1.65, 0.26));
+      group.add(_box(0.08, 0.2, 0.02, fc, 0.14, 1.65, 0.26));
+    }
+
+    // ===== SKELETON: skull with eye sockets + ribcage =====
+    if (isSkeleton) {
+      // Eye sockets (dark hollows)
+      group.add(_box(0.12, 0.1, 0.04, 0x222222, -0.1, 1.8, 0.26));
+      group.add(_box(0.12, 0.1, 0.04, 0x222222, 0.1, 1.8, 0.26));
+      // Nose hole
+      group.add(_box(0.06, 0.06, 0.04, 0x222222, 0, 1.7, 0.26));
+      // Jaw line
+      group.add(_box(0.3, 0.06, 0.04, 0xc8c8b8, 0, 1.55, 0.26));
+      // Teeth
+      for (let i = -0.1; i <= 0.1; i += 0.05) {
+        group.add(_box(0.03, 0.04, 0.02, 0xeeeedd, i, 1.55, 0.28));
+      }
+      // Ribcage on body (horizontal ribs)
+      for (let i = 0; i < 4; i++) {
+        const ribY = 1.2 + i * 0.12;
+        group.add(_box(0.4, 0.04, 0.06, 0xd0d0c0, 0, ribY, 0.13));
+      }
+      // Spine (vertical line down back)
+      group.add(_box(0.06, 0.6, 0.06, 0xd0d0c0, 0, 1.0, -0.13));
+      // Pelvis
+      group.add(_box(0.35, 0.08, 0.15, 0xd0d0c0, 0, 0.7, 0));
     }
 
     group.userData.parts = { head, body, leftArm, rightArm, leftLeg, rightLeg };
@@ -924,20 +992,71 @@ export class MobManager {
   _createSlimeMesh(colors) {
     const group = new THREE.Group();
 
-    const bodyGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-    const bodyMat = new THREE.MeshLambertMaterial({ color: colors.body, transparent: true, opacity: 0.85 });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.set(0, 0.6, 0);
-    body.userData.baseY = 0.6;
+    // Multiple stacked cubes getting smaller (Minecraft slime style)
+    const sizes = [
+      { w: 0.9, h: 0.9, d: 0.9, y: 0.5 },
+      { w: 0.7, h: 0.7, d: 0.7, y: 1.2 },
+      { w: 0.5, h: 0.5, d: 0.5, y: 1.7 },
+    ];
+
+    // Outer translucent green shell
+    const shellMat = new THREE.MeshPhongMaterial({
+      color: colors.body,
+      transparent: true,
+      opacity: 0.6,
+      emissive: 0x1a5c1a,
+      emissiveIntensity: 0.3,
+    });
+    shellMat._special = true;
+
+    // Inner glow cube (smaller, brighter)
+    const innerMat = new THREE.MeshPhongMaterial({
+      color: 0x66cc66,
+      transparent: true,
+      opacity: 0.4,
+      emissive: 0x33aa33,
+      emissiveIntensity: 0.5,
+    });
+
+    // Bottom layer (body) - largest
+    const bodyGeo = new THREE.BoxGeometry(sizes[0].w, sizes[0].h, sizes[0].d);
+    const body = new THREE.Mesh(bodyGeo, shellMat.clone());
+    body.material._special = true;
+    body.position.set(0, sizes[0].y, 0);
+    body.userData.baseY = sizes[0].y;
     group.add(body);
 
-    // Eyes
-    group.add(_box(0.15, 0.15, 0.05, 0xffffff, -0.15, 0.75, 0.41));
-    group.add(_box(0.15, 0.15, 0.05, 0xffffff, 0.15, 0.75, 0.41));
-    group.add(_box(0.07, 0.07, 0.02, 0x000000, -0.15, 0.75, 0.44));
-    group.add(_box(0.07, 0.07, 0.02, 0x000000, 0.15, 0.75, 0.44));
+    // Inner cube for depth inside body
+    const innerGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const inner = new THREE.Mesh(innerGeo, innerMat);
+    inner.position.set(0, 0, 0); // relative to body
+    body.add(inner);
 
-    group.userData.parts = { head: body, body, leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
+    // Middle layer
+    const midGeo = new THREE.BoxGeometry(sizes[1].w, sizes[1].h, sizes[1].d);
+    const mid = new THREE.Mesh(midGeo, shellMat.clone());
+    mid.material._special = true;
+    mid.position.set(0, sizes[1].y - sizes[0].y, 0); // relative to body
+    body.add(mid);
+
+    // Top layer (head area) - smallest
+    const headGeo = new THREE.BoxGeometry(sizes[2].w, sizes[2].h, sizes[2].d);
+    const head = new THREE.Mesh(headGeo, shellMat.clone());
+    head.material._special = true;
+    head.position.set(0, sizes[2].y, 0);
+    head.userData.baseY = sizes[2].y;
+    group.add(head);
+
+    // Eyes (white with dark pupils) on top section
+    group.add(_box(0.15, 0.15, 0.05, 0xffffff, -0.12, 1.82, 0.26));
+    group.add(_box(0.15, 0.15, 0.05, 0xffffff, 0.12, 1.82, 0.26));
+    group.add(_box(0.07, 0.07, 0.02, 0x111111, -0.12, 1.82, 0.29));
+    group.add(_box(0.07, 0.07, 0.02, 0x111111, 0.12, 1.82, 0.29));
+
+    // Mouth below eyes (dark rectangle)
+    group.add(_box(0.2, 0.08, 0.02, 0x225522, 0, 1.62, 0.26));
+
+    group.userData.parts = { head, body, leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
     return group;
   }
 

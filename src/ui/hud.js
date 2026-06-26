@@ -69,11 +69,11 @@ export class HUD {
     let html = '';
     for (let i = 0; i < maxHearts; i++) {
       if (i < fullHearts) {
-        html += '<span style="color:#e22;font-size:16px;text-shadow:0 0 3px #a00;">♥</span>';
+        html += '<span style="color:#e22;font-size:20px;text-shadow:0 0 3px #a00;">♥</span>';
       } else if (i === fullHearts && halfHeart) {
-        html += '<span style="color:#e22;font-size:16px;opacity:0.5;text-shadow:0 0 3px #a00;">♥</span>';
+        html += '<span style="color:#e22;font-size:20px;opacity:0.5;text-shadow:0 0 3px #a00;">♥</span>';
       } else {
-        html += '<span style="color:#444;font-size:16px;">♥</span>';
+        html += '<span style="color:#444;font-size:20px;">♥</span>';
       }
     }
     this.heartsEl.innerHTML = html;
@@ -89,11 +89,11 @@ export class HUD {
     let html = '';
     for (let i = 0; i < maxPieces; i++) {
       if (i < full) {
-        html += '<span style="font-size:14px;">🍖</span>';
+        html += '<span style="font-size:12px;">🍖</span>';
       } else if (i === full && half) {
-        html += '<span style="font-size:14px;opacity:0.5;">🍖</span>';
+        html += '<span style="font-size:12px;opacity:0.5;">🍖</span>';
       } else {
-        html += '<span style="font-size:14px;opacity:0.2;">🍖</span>';
+        html += '<span style="font-size:12px;opacity:0.2;">🍖</span>';
       }
     }
     this.hungerEl.innerHTML = html;

@@ -131,28 +131,177 @@ export class Player {
     this.scene.add(this._highlightMesh);
   }
 
+  /**
+   * Pre-generate 10 crack overlay stages with increasing line density.
+   * Each stage is a THREE.LineSegments that gets shown/hidden.
+   */
+  _createCrackStages() {
+    for (let stage = 0; stage <= 10; stage++) {
+      const positions = [];
+      if (stage > 0) {
+        // More lines at higher stages: 2 + stage*2 lines
+        const lineCount = 2 + stage * 2;
+        for (let i = 0; i < lineCount; i++) {
+          const face = Math.floor(Math.random() * 6);
+          const pts = this._generateCrackLine(face);
+          positions.push(...pts);
+        }
+        // Add cross-hatching at higher stages for density
+        if (stage >= 5) {
+          for (let i = 0; i < stage - 3; i++) {
+            const face = Math.floor(Math.random() * 6);
+            const pts = this._generateShortCrackLine(face);
+            positions.push(...pts);
+          }
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+      // Color darkens from reddish to black as cracks deepen
+      const darkness = stage / 10;
+      const r = 0.8 - darkness * 0.8;
+      const g = 0.2 - darkness * 0.2;
+      const b = 0.2 - darkness * 0.2;
+      const mat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(r, g, b),
+        linewidth: 2,
+        transparent: true,
+        opacity: stage === 0 ? 0 : (0.4 + stage * 0.06),
+        depthTest: true,
+      });
+
+      const mesh = new THREE.LineSegments(geo, mat);
+      mesh.visible = false;
+      mesh.position.set(0.5, 0.5, 0.5);
+      this._crackOverlays.push(mesh);
+    }
+  }
+
+  /**
+   * Generate a crack line segment on a specific face of a unit cube.
+   * @returns {number[]} [x1,y1,z1, x2,y2,z2]
+   */
+  _generateCrackLine(face) {
+    const clamp = (v) => Math.max(-0.5, Math.min(0.5, v));
+    const len = 0.3 + Math.random() * 0.5;
+    const angle = Math.random() * Math.PI * 2;
+
+    let x, y, z;
+    const u = Math.random() - 0.5;
+    const v = Math.random() - 0.5;
+    switch (face) {
+      case 0: x =  0.51; y = v; z = u; break;
+      case 1: x = -0.51; y = v; z = u; break;
+      case 2: x = u; y =  0.51; z = v; break;
+      case 3: x = u; y = -0.51; z = v; break;
+      case 4: x = u; y = v; z =  0.51; break;
+      case 5: x = u; y = v; z = -0.51; break;
+    }
+
+    let x2 = x + Math.cos(angle) * len;
+    let y2 = y + Math.sin(angle) * len;
+    let z2 = z + (Math.random() - 0.5) * len * 0.5;
+    x2 = clamp(x2); y2 = clamp(y2); z2 = clamp(z2);
+
+    return [x, y, z, x2, y2, z2];
+  }
+
+  /**
+   * Generate a short secondary crack for cross-hatching at high stages.
+   */
+  _generateShortCrackLine(face) {
+    const clamp = (v) => Math.max(-0.5, Math.min(0.5, v));
+    const len = 0.1 + Math.random() * 0.3;
+    const angle = Math.random() * Math.PI * 2;
+
+    let x, y, z;
+    const u = Math.random() - 0.5;
+    const v = Math.random() - 0.5;
+    switch (face) {
+      case 0: x =  0.52; y = v; z = u; break;
+      case 1: x = -0.52; y = v; z = u; break;
+      case 2: x = u; y =  0.52; z = v; break;
+      case 3: x = u; y = -0.52; z = v; break;
+      case 4: x = u; y = v; z =  0.52; break;
+      case 5: x = u; y = v; z = -0.52; break;
+    }
+
+    let x2 = x + Math.cos(angle) * len;
+    let y2 = y + Math.sin(angle) * len;
+    let z2 = z + (Math.random() - 0.5) * len * 0.3;
+    x2 = clamp(x2); y2 = clamp(y2); z2 = clamp(z2);
+
+    return [x, y, z, x2, y2, z2];
+  }
+
+  /**
+   * Regenerate crack patterns for a specific stage (randomized each update).
+   */
+  _regenerateCracks(stage) {
+    const overlay = this._crackOverlays[stage];
+    if (!overlay) return;
+
+    const positions = [];
+    const lineCount = 2 + stage * 2;
+    for (let i = 0; i < lineCount; i++) {
+      const face = Math.floor(Math.random() * 6);
+      positions.push(...this._generateCrackLine(face));
+    }
+    if (stage >= 5) {
+      for (let i = 0; i < stage - 3; i++) {
+        const face = Math.floor(Math.random() * 6);
+        positions.push(...this._generateShortCrackLine(face));
+      }
+    }
+
+    overlay.geometry.dispose();
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    overlay.geometry = geo;
+  }
+
   _updateCrackOverlay(pos, level) {
-    this._removeCrackOverlay();
-    if (level <= 0 || level > 10) return;
-    // Create a wireframe box with crack density based on level
-    const geo = new THREE.BoxGeometry(1.01, 1.01, 1.01);
-    const edges = new THREE.EdgesGeometry(geo);
-    // Color goes from white to red as cracks increase
-    const r = 1, g = 1 - level * 0.08, b = 1 - level * 0.08;
-    const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(r, g, b), linewidth: 1, transparent: true, opacity: 0.3 + level * 0.07 });
-    this._crackOverlay = new THREE.LineSegments(edges, mat);
-    this._crackOverlay.position.set(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
-    this.scene.add(this._crackOverlay);
+    // Hide all stages
+    for (let i = 0; i <= 10; i++) {
+      if (this._crackOverlays[i]) {
+        this._crackOverlays[i].visible = false;
+      }
+    }
+
+    if (level <= 0 || level > 10) {
+      this._crackOverlay = null;
+      return;
+    }
+
+    const overlay = this._crackOverlays[level];
+    if (!overlay) return;
+
+    // Position at the mining block
+    overlay.position.set(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
+    overlay.visible = true;
+
+    // Add to scene if not already
+    if (!overlay.parent) {
+      this.scene.add(overlay);
+    }
+    this._crackOverlay = overlay;
+    this._crackLevel = level;
+
+    // Re-generate cracks each time for variety
+    this._regenerateCracks(level);
   }
 
   _removeCrackOverlay() {
-    if (this._crackOverlay) {
-      this.scene.remove(this._crackOverlay);
-      this._crackOverlay.geometry?.dispose();
-      this._crackOverlay.material?.dispose();
-      this._crackOverlay = null;
-      this._crackLevel = 0;
+    // Hide all crack overlays
+    for (let i = 0; i <= 10; i++) {
+      if (this._crackOverlays[i]) {
+        this._crackOverlays[i].visible = false;
+      }
     }
+    this._crackOverlay = null;
+    this._crackLevel = 0;
   }
 
   // ===== MAIN UPDATE =====
@@ -527,6 +676,9 @@ export class Player {
     // Audio
     this.audio?.play?.('block_break');
 
+    // Emit break particles
+    this._emitBreakParticles(target.pos, blockId);
+
     // Track for stats
     if (window.game?.runStats) {
       window.game.runStats.blocksMined = (window.game.runStats.blocksMined || 0) + 1;
@@ -552,6 +704,47 @@ export class Player {
     const itemDef = getItemByName(name);
     if (!itemDef) return;
     this._spawnDroppedItem(itemDef.id, x, y, z);
+  }
+
+  /**
+   * Emit particles when a block is broken.
+   * Colors match the block type for visual feedback.
+   */
+  _emitBreakParticles(pos, blockId) {
+    const blockColors = {
+      1: 0x8B6914, 2: 0x6B8C42, 3: 0x8B7355, 4: 0x808080, 5: 0x808080,
+      6: 0x8B6914, 7: 0x404040, 10: 0x8B6914, 11: 0x228B22, 12: 0xD2B48C,
+      13: 0x808080, 14: 0xFFD700, 15: 0xC0C0C0, 16: 0x404040, 17: 0x4AEDD9,
+      18: 0x444444, 19: 0xB22222, 20: 0x4B0082, 21: 0x00CED1, 22: 0xF5F5DC,
+    };
+    const color = blockColors[blockId] || 0x888888;
+    const count = 8 + Math.floor(Math.random() * 6);
+    const center = new THREE.Vector3(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
+
+    for (let i = 0; i < count; i++) {
+      const size = 0.04 + Math.random() * 0.06;
+      const geo = new THREE.BoxGeometry(size, size, size);
+      const mat = new THREE.MeshBasicMaterial({ color });
+      const mesh = new THREE.Mesh(geo, mat);
+
+      mesh.position.set(
+        center.x + (Math.random() - 0.5) * 0.8,
+        center.y + (Math.random() - 0.5) * 0.8,
+        center.z + (Math.random() - 0.5) * 0.8,
+      );
+      this.scene.add(mesh);
+
+      this._breakParticles.push({
+        mesh,
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 4,
+          2 + Math.random() * 3,
+          (Math.random() - 0.5) * 4,
+        ),
+        age: 0,
+        lifetime: 0.6 + Math.random() * 0.4,
+      });
+    }
   }
 
   /**
@@ -611,6 +804,28 @@ export class Player {
    * Update dropped items: physics, lifetime, pickup
    */
   _updateDroppedItems(dt) {
+    // Update break particles
+    for (let i = this._breakParticles.length - 1; i >= 0; i--) {
+      const p = this._breakParticles[i];
+      p.age += dt;
+      if (p.age >= p.lifetime) {
+        this.scene.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        p.mesh.material.dispose();
+        this._breakParticles.splice(i, 1);
+        continue;
+      }
+      p.velocity.y += GRAVITY * dt;
+      p.mesh.position.addScaledVector(p.velocity, dt);
+      p.mesh.rotation.x += dt * 5;
+      p.mesh.rotation.y += dt * 3;
+      // Fade out
+      p.mesh.material.opacity = 1 - (p.age / p.lifetime);
+      p.mesh.material.transparent = true;
+      const scale = 1 - (p.age / p.lifetime) * 0.5;
+      p.mesh.scale.set(scale, scale, scale);
+    }
+
     for (let i = this.droppedItems.length - 1; i >= 0; i--) {
       const item = this.droppedItems[i];
       item.age += dt;
