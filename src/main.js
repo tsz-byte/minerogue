@@ -18,6 +18,8 @@ import { AudioEngine } from './audio/engine.js';
 import { ParticleSystem } from './particles.js';
 import { HUD } from './ui/hud.js';
 import { MenuManager } from './ui/menus.js';
+import { getItem } from './data/items.js';
+import { getBlock } from './data/blocks.js';
 import { Minimap } from './ui/minimap.js';
 import { HandRenderer } from './ui/hand.js';
 import { createTextureAtlas, createItemTextureAtlas } from './textures.js';
@@ -599,9 +601,9 @@ class Game {
       return;
     }
 
-    // Tab - minimap
-    if (input.isKeyDown('Tab')) {
-      input.keys.delete('Tab');
+    // M - minimap
+    if (input.isKeyDown('KeyM')) {
+      input.keys.delete('KeyM');
       if (this.minimap) this.minimap.toggle();
     }
 
@@ -682,7 +684,21 @@ class Game {
         this._doPlayerAttack();
       }
       if (this.input.isMouseDown(2) && this.state === STATE.PLAYING) {
-        this.player.placeBlock();
+        // Check for interactable block (chest) before placing
+        const target = this.player.getBlockLookingAt();
+        if (target && target.blockId === 31) { // Chest
+          const loot = this.world.openChest(target.pos.x, target.pos.y, target.pos.z);
+          if (loot) {
+            for (const item of loot.items) {
+              this.inventory.addItem(item.id, item.count);
+            }
+            const names = loot.items.map(i => `${i.count}× ${this._getItemName(i.id)}`).join(', ');
+            this.hud.showToast(`Chest opened: ${names}`);
+            this.audio?.play?.('block_place');
+          }
+        } else {
+          this.player.placeBlock();
+        }
       }
 
       // Particles
@@ -803,6 +819,14 @@ class Game {
     if (!this.hand || !this.inventory) return;
     const slot = this.inventory.getSlot(this.player.selectedSlot);
     this.hand.setItem(slot ? slot.id : null);
+  }
+
+  /**
+   * Get human-readable name for an item ID.
+   */
+  _getItemName(id) {
+    const item = getItem(id);
+    return item?.name || `Item #${id}`;
   }
 
   /**

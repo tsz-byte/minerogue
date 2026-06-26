@@ -118,7 +118,34 @@ export function getItemThreeTexture(itemId) {
 }
 
 /**
+ * Remove white/near-white background from an image by compositing onto a transparent canvas.
+ * Pixels where R, G, B are all >= 240 are made transparent.
+ * @param {HTMLImageElement} img
+ * @returns {HTMLCanvasElement} Canvas with transparent background
+ */
+function _removeWhiteBg(img) {
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const d = imageData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    // If pixel is near-white (R>=240, G>=240, B>=240), make it transparent
+    if (d[i] >= 240 && d[i + 1] >= 240 && d[i + 2] >= 240) {
+      d[i + 3] = 0;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+/**
  * Load and cache an Image element for an item (for 2D UI use).
+ * White backgrounds are automatically removed for transparency.
  * @param {number} itemId
  * @returns {Promise<HTMLImageElement|null>}
  */
@@ -134,8 +161,14 @@ export function getItemImage(itemId) {
 
     const img = new Image();
     img.onload = () => {
-      _imageCache.set(itemId, img);
-      resolve(img);
+      // Remove white background for transparent rendering in UI
+      const canvas = _removeWhiteBg(img);
+      const cleanedImg = new Image();
+      cleanedImg.onload = () => {
+        _imageCache.set(itemId, cleanedImg);
+        resolve(cleanedImg);
+      };
+      cleanedImg.src = canvas.toDataURL();
     };
     img.onerror = () => resolve(null);
     img.src = `/textures/items/${filename}`;
@@ -145,6 +178,7 @@ export function getItemImage(itemId) {
 /**
  * Get item texture as a data URL for immediate use in DOM (synchronous fallback).
  * Returns a colored placeholder if image not loaded yet.
+ * White backgrounds are removed for proper transparency.
  */
 export function getItemTextureUrl(itemId) {
   if (_imageCache.has(itemId)) {

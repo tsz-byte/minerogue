@@ -712,6 +712,26 @@ export class MobManager {
         body.material = new THREE.MeshLambertMaterial({ map: this._mobTextureAtlas });
       }
     }
+
+    // Apply textured material to the head
+    const head = parts.head;
+    if (head && head.geometry) {
+      const geo = head.geometry;
+      const uvs = geo.attributes.uv;
+      if (uvs) {
+        const faceOrder = [3, 2, 4, 5, 0, 1];
+        for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
+          const uv = getMobFaceUV(type, faceOrder[faceIdx]);
+          const v = faceIdx * 4;
+          uvs.setXY(v, uv.u0, uv.v0);
+          uvs.setXY(v + 1, uv.u1, uv.v0);
+          uvs.setXY(v + 2, uv.u1, uv.v1);
+          uvs.setXY(v + 3, uv.u0, uv.v1);
+        }
+        uvs.needsUpdate = true;
+        head.material = new THREE.MeshLambertMaterial({ map: this._mobTextureAtlas });
+      }
+    }
   }
 
   _createHumanoidMesh(colors, type) {

@@ -5,14 +5,83 @@
 import * as THREE from 'three';
 import { getItem, isTool } from '../data/items.js';
 
+// Skin tone for hand/arm
 const HAND_COLOR = 0xc8956a;
-const SLEEVE_COLOR = 0x4a6a4a;
+// No visible sleeve — keep it off-screen by extending the arm geometry upward
+// Use a skin-matching color so even if a bit peeks in, it blends naturally
+const ARM_COLOR = 0xc8956a;
 
 // Material colors
 const MAT_COLORS = {
   wood: 0xa08030, stone: 0x8a8a8a, iron: 0xc8c8c8,
   gold: 0xe8c840, diamond: 0x40e8e8, crystal: 0xa040e0,
   leather: 0x8b4513,
+};
+
+// Block colors for held block rendering (Minecraft-accurate)
+const BLOCK_COLORS = {
+  1: 0x8B6914,   // wood planks
+  2: 0x6B8C42,   // grass
+  3: 0x8B7355,   // dirt
+  4: 0x808080,   // stone
+  5: 0x808080,   // cobblestone
+  6: 0x8B6914,   // oak log
+  7: 0x808080,   // bedrock
+  8: 0x4444AA,   // sand
+  9: 0x8B0000,   // red sand
+  10: 0x8B6914,  // oak planks
+  11: 0x228B22,  // leaves
+  12: 0xD2B48C,  // sand
+  13: 0x808080,  // gravel
+  14: 0xFFD700,  // gold ore
+  15: 0xC0C0C0,  // iron ore
+  16: 0x404040,  // coal ore
+  17: 0x4AEDD9,  // diamond ore
+  18: 0x444444,  // obsidian
+  19: 0xB22222,  // netherrack
+  20: 0x4B0082,  // end stone
+  21: 0x00CED1,  // ice
+  22: 0xF5F5DC,  // snow
+  23: 0xDAA520,  // crafting table
+  24: 0x8B4513,  // chest
+  25: 0x808080,  // furnace
+  26: 0xA0522D,  // torch (yellow flame)
+  27: 0x696969,  // iron block
+  28: 0xFFD700,  // gold block
+  29: 0x4AEDD9,  // diamond block
+  30: 0xA040E0,  // crystal/emerald block
+};
+
+// Material item colors for held items
+const MATERIAL_COLORS = {
+  200: 0x2a2a2a, // coal
+  201: 0xc8c8c8, // iron ingot
+  202: 0xe8c840, // gold ingot
+  203: 0x40e8e8, // diamond
+  204: 0xa040e0, // crystal
+  205: 0xcc0000, // redstone
+  206: 0x8B6914, // stick
+  207: 0xcccccc, // string
+  208: 0xf0f0d0, // bone
+  209: 0xe8e8e0, // feather
+  210: 0x4a4a4a, // flint
+  211: 0xb04030, // brick
+  212: 0xf0f0e0, // paper
+  213: 0x8B4513, // book
+  214: 0x8b4513, // leather
+  215: 0x4a4a4a, // gunpowder
+  216: 0x30c060, // ender pearl
+  217: 0x6040a0, // soul shard
+  218: 0xf0f0a0, // nether star
+  219: 0xd06020, // blaze rod
+  220: 0xe0e0f0, // ghast tear
+  221: 0xe0c040, // glowstone dust
+  270: 0x8B6914, // wood
+  271: 0x808080, // stone
+  272: 0x2a1a3a, // obsidian
+  273: 0xc0a080, // clay
+  274: 0x8a7a6a, // iron ore
+  275: 0xc0a040, // gold ore
 };
 
 export class HandRenderer {
@@ -35,7 +104,7 @@ export class HandRenderer {
 
     // Item pivot for swing animation
     this.itemPivot = new THREE.Group();
-    this.itemPivot.position.set(0, -0.18, 0);
+    this.itemPivot.position.set(0, -0.14, 0);
     this.group.add(this.itemPivot);
 
     // Current item display
@@ -57,32 +126,21 @@ export class HandRenderer {
   }
 
   _buildArm() {
-    // Sleeve (upper arm)
-    const sleeveGeo = new THREE.BoxGeometry(0.14, 0.25, 0.14);
-    const sleeveMat = new THREE.MeshLambertMaterial({ color: SLEEVE_COLOR, depthTest: false });
-    this.sleeve = new THREE.Mesh(sleeveGeo, sleeveMat);
-    this.sleeve.position.set(0, 0.12, 0);
-    this.group.add(this.sleeve);
+    // Forearm — skin-colored, angled slightly to look natural
+    // Positioned so the upper part goes above/behind the viewport edge
+    const armGeo = new THREE.BoxGeometry(0.09, 0.32, 0.09);
+    const armMat = new THREE.MeshLambertMaterial({ color: ARM_COLOR, depthTest: false });
+    this.arm = new THREE.Mesh(armGeo, armMat);
+    this.arm.position.set(0.02, 0.12, 0.02);
+    this.arm.rotation.z = 0.15; // slight angle
+    this.group.add(this.arm);
 
-    // Hand
-    const handGeo = new THREE.BoxGeometry(0.12, 0.18, 0.12);
+    // Hand — slightly wider than forearm, skin-toned
+    const handGeo = new THREE.BoxGeometry(0.095, 0.09, 0.10);
     const handMat = new THREE.MeshLambertMaterial({ color: HAND_COLOR, depthTest: false });
     this.hand = new THREE.Mesh(handGeo, handMat);
-    this.hand.position.set(0, -0.06, -0.02);
+    this.hand.position.set(0.02, -0.10, 0);
     this.group.add(this.hand);
-
-    // Fingers
-    const fingerGeo = new THREE.BoxGeometry(0.025, 0.07, 0.025);
-    const fingerMat = new THREE.MeshLambertMaterial({ color: HAND_COLOR, depthTest: false });
-    for (let i = 0; i < 4; i++) {
-      const finger = new THREE.Mesh(fingerGeo, fingerMat);
-      finger.position.set(-0.04 + i * 0.025, -0.17, -0.02);
-      this.group.add(finger);
-    }
-    const thumb = new THREE.Mesh(fingerGeo, fingerMat);
-    thumb.position.set(-0.07, -0.12, -0.02);
-    thumb.rotation.z = 0.5;
-    this.group.add(thumb);
   }
 
   _setRenderOrder(obj, order) {
@@ -125,23 +183,31 @@ export class HandRenderer {
     } else if (type === 'bow') {
       this._buildBow();
     } else if (type === 'shield') {
-      this._buildShield();
+      this._buildShield(material);
     } else if (type === 'food') {
       this._buildFood(itemId);
     } else if (type === 'potion') {
       this._buildPotion(itemId);
+    } else if (type === 'material') {
+      this._buildMaterial(itemId, color);
+    } else if (type === 'helmet' || type === 'chestplate' || type === 'leggings' || type === 'boots') {
+      this._buildArmor(type, mat);
+    } else if (type === 'ammo') {
+      this._buildArrow();
+    } else if (type === 'block') {
+      this._buildBlock(itemId);
     } else {
       this._buildGeneric(color);
     }
   }
 
   _buildSword(mat) {
-    // Blade
+    // Blade — tall, thin
     const bladeGeo = new THREE.BoxGeometry(0.03, 0.4, 0.012);
     const blade = new THREE.Mesh(bladeGeo, mat);
     blade.position.set(0, 0.08, 0);
     this.itemGroup.add(blade);
-    // Guard
+    // Guard — cross-piece
     const guardGeo = new THREE.BoxGeometry(0.1, 0.02, 0.02);
     const guardMat = new THREE.MeshLambertMaterial({ color: 0x6a4a10, depthTest: false });
     const guard = new THREE.Mesh(guardGeo, guardMat);
@@ -198,15 +264,29 @@ export class HandRenderer {
     r.position.set(0.03, 0.02, 0);
     r.rotation.z = 0.12;
     this.itemGroup.add(r);
+    // String
+    const stringGeo = new THREE.BoxGeometry(0.004, 0.34, 0.004);
+    const stringMat = new THREE.MeshLambertMaterial({ color: 0xcccccc, depthTest: false });
+    const string = new THREE.Mesh(stringGeo, stringMat);
+    string.position.set(0, 0.02, 0.01);
+    this.itemGroup.add(string);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, 0.03), mat);
     grip.position.set(0, -0.1, 0);
     this.itemGroup.add(grip);
   }
 
-  _buildShield() {
+  _buildShield(material) {
+    const shieldColor = MAT_COLORS[material] || 0x6a4a10;
+    // Body — wooden shield with metal boss
     const bodyGeo = new THREE.BoxGeometry(0.2, 0.25, 0.03);
     const bodyMat = new THREE.MeshLambertMaterial({ color: 0x6a4a10, depthTest: false });
     this.itemGroup.add(new THREE.Mesh(bodyGeo, bodyMat));
+    // Metal rim/boss
+    const bossGeo = new THREE.BoxGeometry(0.06, 0.06, 0.04);
+    const bossMat = new THREE.MeshLambertMaterial({ color: shieldColor, depthTest: false });
+    const boss = new THREE.Mesh(bossGeo, bossMat);
+    boss.position.set(0, 0, 0.015);
+    this.itemGroup.add(boss);
   }
 
   _buildFood(itemId) {
@@ -218,23 +298,172 @@ export class HandRenderer {
     };
     const color = foodColors[itemId] || 0xc8a040;
     const mat = new THREE.MeshLambertMaterial({ color, depthTest: false });
-    const geo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+    // Food items held at a slight angle, like eating
+    const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(0, -0.12, -0.04);
+    mesh.rotation.set(0.3, 0.4, 0);
     this.itemGroup.add(mesh);
   }
 
   _buildPotion(itemId) {
-    const bottleMat = new THREE.MeshLambertMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.5, depthTest: false });
+    // Glass bottle — transparent
+    const bottleMat = new THREE.MeshLambertMaterial({
+      color: 0xaaaaaa, transparent: true, opacity: 0.4, depthTest: false,
+    });
     const bottleGeo = new THREE.BoxGeometry(0.06, 0.12, 0.06);
     const bottle = new THREE.Mesh(bottleGeo, bottleMat);
     bottle.position.set(0, -0.08, -0.04);
     this.itemGroup.add(bottle);
+    // Bottle neck
+    const neckGeo = new THREE.BoxGeometry(0.03, 0.04, 0.03);
+    const neck = new THREE.Mesh(neckGeo, bottleMat);
+    neck.position.set(0, -0.0, -0.04);
+    this.itemGroup.add(neck);
+    // Liquid inside
     const liquidColor = itemId === 230 ? 0xc03030 : itemId === 231 ? 0x30c030 : 0x3030c0;
     const liquidMat = new THREE.MeshLambertMaterial({ color: liquidColor, depthTest: false });
     const liquid = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.04), liquidMat);
     liquid.position.set(0, -0.1, -0.04);
     this.itemGroup.add(liquid);
+  }
+
+  _buildBlock(itemId) {
+    // Render as a Minecraft-style cube held in hand
+    const color = BLOCK_COLORS[itemId] || 0x808080;
+    const mat = new THREE.MeshLambertMaterial({ color, depthTest: false });
+    const geo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(0, -0.06, -0.06);
+    // Slight rotation so it looks 3D (isometric-like)
+    mesh.rotation.set(0.3, 0.6, 0);
+    this.itemGroup.add(mesh);
+    // Edge highlight for blocky look
+    const edgeGeo = new THREE.BoxGeometry(0.185, 0.185, 0.185);
+    const edgeMat = new THREE.MeshLambertMaterial({
+      color: 0x000000, transparent: true, opacity: 0.12, depthTest: false, wireframe: true,
+    });
+    const edges = new THREE.Mesh(edgeGeo, edgeMat);
+    edges.position.copy(mesh.position);
+    edges.rotation.copy(mesh.rotation);
+    this.itemGroup.add(edges);
+  }
+
+  _buildMaterial(itemId, color) {
+    // Material items — small, distinctive shapes per material type
+    const actualColor = MATERIAL_COLORS[itemId] || color;
+    const mat = new THREE.MeshLambertMaterial({ color: actualColor, depthTest: false });
+
+    // Ender pearl — sphere
+    if (itemId === 216) {
+      const geo = new THREE.SphereGeometry(0.04, 8, 6);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.10, -0.04);
+      this.itemGroup.add(mesh);
+      return;
+    }
+    // Blaze rod — elongated
+    if (itemId === 219) {
+      const geo = new THREE.BoxGeometry(0.025, 0.2, 0.025);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.04, -0.04);
+      mesh.rotation.set(0, 0, -0.3);
+      this.itemGroup.add(mesh);
+      return;
+    }
+    // Ghast tear — small sphere
+    if (itemId === 220) {
+      const geo = new THREE.SphereGeometry(0.03, 6, 4);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.10, -0.04);
+      this.itemGroup.add(mesh);
+      return;
+    }
+    // Stick — thin rod
+    if (itemId === 206) {
+      const geo = new THREE.BoxGeometry(0.02, 0.22, 0.02);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.04, -0.04);
+      mesh.rotation.set(0, 0, -0.3);
+      this.itemGroup.add(mesh);
+      return;
+    }
+    // String — thin flat
+    if (itemId === 207) {
+      const geo = new THREE.BoxGeometry(0.015, 0.15, 0.015);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.06, -0.04);
+      this.itemGroup.add(mesh);
+      return;
+    }
+    // Paper/book — flat rectangle
+    if (itemId === 212 || itemId === 213) {
+      const geo = new THREE.BoxGeometry(0.1, 0.14, 0.015);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.06, -0.04);
+      this.itemGroup.add(mesh);
+      return;
+    }
+    // Default material — small cube (ingot/gem shape)
+    const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(0, -0.10, -0.04);
+    this.itemGroup.add(mesh);
+  }
+
+  _buildArmor(type, mat) {
+    // Show armor as a recognizable shape based on slot
+    if (type === 'helmet') {
+      const geo = new THREE.BoxGeometry(0.12, 0.1, 0.12);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.08, -0.04);
+      this.itemGroup.add(mesh);
+      // Visor
+      const visorGeo = new THREE.BoxGeometry(0.13, 0.03, 0.02);
+      const visorMat = new THREE.MeshLambertMaterial({ color: 0x222222, depthTest: false });
+      const visor = new THREE.Mesh(visorGeo, visorMat);
+      visor.position.set(0, -0.05, -0.08);
+      this.itemGroup.add(visor);
+    } else if (type === 'chestplate') {
+      const geo = new THREE.BoxGeometry(0.14, 0.16, 0.08);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.06, -0.04);
+      this.itemGroup.add(mesh);
+    } else if (type === 'leggings') {
+      const geo = new THREE.BoxGeometry(0.12, 0.18, 0.07);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.06, -0.04);
+      this.itemGroup.add(mesh);
+    } else if (type === 'boots') {
+      const geo = new THREE.BoxGeometry(0.10, 0.08, 0.14);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, -0.10, -0.04);
+      this.itemGroup.add(mesh);
+    }
+  }
+
+  _buildArrow() {
+    // Arrow shaft
+    const shaftGeo = new THREE.BoxGeometry(0.012, 0.3, 0.012);
+    const shaftMat = new THREE.MeshLambertMaterial({ color: 0x8B6914, depthTest: false });
+    const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+    shaft.position.set(0, 0.0, -0.04);
+    shaft.rotation.set(0, 0, -0.3);
+    this.itemGroup.add(shaft);
+    // Arrowhead
+    const tipGeo = new THREE.BoxGeometry(0.025, 0.04, 0.015);
+    const tipMat = new THREE.MeshLambertMaterial({ color: 0x808080, depthTest: false });
+    const tip = new THREE.Mesh(tipGeo, tipMat);
+    tip.position.set(-0.03, 0.14, -0.04);
+    tip.rotation.z = -0.3;
+    this.itemGroup.add(tip);
+    // Fletching
+    const fletchGeo = new THREE.BoxGeometry(0.03, 0.04, 0.005);
+    const fletchMat = new THREE.MeshLambertMaterial({ color: 0xcc3333, depthTest: false });
+    const fletch = new THREE.Mesh(fletchGeo, fletchMat);
+    fletch.position.set(0.04, -0.12, -0.04);
+    fletch.rotation.z = -0.3;
+    this.itemGroup.add(fletch);
   }
 
   _buildGeneric(color) {

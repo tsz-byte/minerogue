@@ -17,6 +17,27 @@ export class World {
     this.isHome = isHome;
     this.chunks = new Map();
     this._pendingTrees = [];
+    this.chestLoot = new Map(); // key "x,y,z" → [{id, count}]
+  }
+
+  /**
+   * Open a chest at world coordinates. Returns loot array and removes the chest.
+   * @returns {{items: Array<{id: number, count: number}>} | null}
+   */
+  openChest(x, y, z) {
+    const key = `${x},${y},${z}`;
+    const loot = this.chestLoot.get(key);
+    if (!loot) return null;
+    this.chestLoot.delete(key);
+    this.setBlock(x, y, z, 0); // remove chest block
+    return { items: loot };
+  }
+
+  /**
+   * Register loot for a chest at world coordinates.
+   */
+  registerChestLoot(x, y, z, items) {
+    this.chestLoot.set(`${x},${y},${z}`, items);
   }
 
   chunkKey(cx, cy, cz) {

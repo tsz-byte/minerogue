@@ -208,9 +208,9 @@ export class WorldGenerator {
             }
           }
 
-          // Water: fill air below sea level (y < 62) in swamp biome
-          if (biome.name === 'swamp' && blockId === 0 && wy < 62) {
-            blockId = 20; // Water
+          // Water: fill only surface-level air in swamp biome (1-2 blocks deep)
+          if (biome.name === 'swamp' && blockId === 0 && wy >= height - 2 && wy <= height) {
+              blockId = 20; // Water
           }
 
           blocks[idx] = blockId;

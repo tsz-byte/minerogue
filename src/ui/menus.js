@@ -288,11 +288,24 @@ export class MenuManager {
     const slots = inventory.slots;
     if (!slots) return;
 
-    // Main grid (36 slots, 4 rows of 9)
+    // Main inventory grid (slots 9-35, 3 rows of 9 — excludes hotbar)
     if (this.invGrid) {
       this.invGrid.innerHTML = '';
-      for (let i = 0; i < Math.min(36, slots.length); i++) {
+      for (let i = 9; i < Math.min(36, slots.length); i++) {
         this.invGrid.appendChild(this._createSlot(slots, i, 'inventory'));
+      }
+    }
+
+    // Hotbar (slots 0-8) — rendered in dedicated #inv-hotbar element
+    const invHotbar = document.getElementById('inv-hotbar');
+    if (invHotbar) {
+      invHotbar.innerHTML = '';
+      for (let i = 0; i < 9; i++) {
+        const slotEl = this._createSlot(slots, i, 'inventory');
+        if (i === inventory.selectedSlot) {
+          slotEl.classList.add('hotbar-selected');
+        }
+        invHotbar.appendChild(slotEl);
       }
     }
 
@@ -478,10 +491,27 @@ export class MenuManager {
 
     const invGrid = document.createElement('div');
     invGrid.style.cssText = 'display:grid;grid-template-columns:repeat(9,40px);gap:2px;justify-content:center;';
-    for (let i = 0; i < Math.min(36, inventory.slots.length); i++) {
+    for (let i = 9; i < Math.min(36, inventory.slots.length); i++) {
       invGrid.appendChild(this._createSlot(inventory.slots, i, 'inventory'));
     }
     panel.appendChild(invGrid);
+
+    // Hotbar
+    const hotbarLabel = document.createElement('div');
+    hotbarLabel.style.cssText = 'color:#888;font-size:11px;text-align:center;margin:8px 0 4px;';
+    hotbarLabel.textContent = 'Hotbar';
+    panel.appendChild(hotbarLabel);
+
+    const hotbarGrid = document.createElement('div');
+    hotbarGrid.style.cssText = 'display:grid;grid-template-columns:repeat(9,40px);gap:2px;justify-content:center;border-top:2px solid #555;padding-top:8px;';
+    for (let i = 0; i < 9; i++) {
+      const slotEl = this._createSlot(inventory.slots, i, 'inventory');
+      if (i === inventory.selectedSlot) {
+        slotEl.classList.add('hotbar-selected');
+      }
+      hotbarGrid.appendChild(slotEl);
+    }
+    panel.appendChild(hotbarGrid);
 
     // Recipe Book
     this._renderRecipeBook(panel, inventory);

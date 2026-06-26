@@ -4,9 +4,53 @@
  * Block IDs match src/data/blocks.js.
  *
  * Key IDs: 6=Cobblestone, 7=Oak Planks, 8=Oak Log, 22=Bedrock,
- *          24=Bricks, 27=Obsidian, 28=Glowstone, 34=Sandstone,
+ *          24=Bricks, 27=Obsidian, 28=Glowstone, 31=Chest, 34=Sandstone,
  *          59=Shrine Block, 60=Mob Spawner, 61=Portal Frame, 67=Void Stone
  */
+
+// ─── Loot Tables ─────────────────────────────────────────────────────
+// Item IDs: 100=Stick, 101=Coal, 102=Iron Ingot, 103=Gold Ingot,
+//           104=Diamond, 105=Crystal, 110=Wooden Sword, 111=Stone Sword,
+//           112=Iron Sword, 113=Stone Pickaxe, 114=Iron Pickaxe,
+//           120=Leather Helmet, 121=Leather Chestplate,
+//           150=Apple, 151=Bread, 152=Cooked Pork, 153=Golden Apple,
+//           230=Potion of Healing
+
+const LOOT = {
+  village: [
+    { id: 151, count: 3 }, // Bread
+    { id: 100, count: 4 }, // Stick
+    { id: 101, count: 2 }, // Coal
+    { id: 110, count: 1 }, // Wooden Sword
+  ],
+  dungeon: [
+    { id: 102, count: 3 }, // Iron Ingot
+    { id: 112, count: 1 }, // Iron Sword
+    { id: 152, count: 2 }, // Cooked Pork
+    { id: 101, count: 5 }, // Coal
+    { id: 120, count: 1 }, // Leather Helmet
+  ],
+  temple: [
+    { id: 103, count: 4 }, // Gold Ingot
+    { id: 104, count: 1 }, // Diamond
+    { id: 153, count: 1 }, // Golden Apple
+    { id: 114, count: 1 }, // Iron Pickaxe
+    { id: 230, count: 2 }, // Potion of Healing
+  ],
+  portal: [
+    { id: 105, count: 3 }, // Crystal
+    { id: 104, count: 2 }, // Diamond
+    { id: 230, count: 3 }, // Potion of Healing
+    { id: 112, count: 1 }, // Iron Sword
+    { id: 103, count: 5 }, // Gold Ingot
+  ],
+};
+
+function _placeChest(world, cx, cy, cz, lootKey) {
+  world.setBlock(cx, cy, cz, 31); // Chest
+  const items = LOOT[lootKey] || LOOT.village;
+  world.registerChestLoot(cx, cy, cz, items.map(i => ({ ...i })));
+}
 
 /**
  * Generate a structure at the given world position.
@@ -89,8 +133,8 @@ function _buildVillageRuins(x, y, z, world) {
     world.setBlock(x + 6, y + h, z + 6, logId);
   }
 
-  // Mob Spawner as loot marker
-  world.setBlock(x + 3, y + 1, z + 3, 60);
+  // Loot chest
+  _placeChest(world, x + 3, y + 1, z + 3, 'village');
 }
 
 // ─── Dungeon Tower ─────────────────────────────────────────────────────
@@ -122,6 +166,9 @@ function _buildDungeonTower(x, y, z, world) {
   for (let dy = 1; dy <= h; dy += 4) {
     world.setBlock(x + 4, y + dy, z + 4, 60); // Mob Spawner
   }
+
+  // Loot chest at ground level
+  _placeChest(world, x + 7, y + 1, z + 7, 'dungeon');
 
   // Ground-level door
   world.setBlock(x + 4, y + 1, z, 0);
@@ -170,8 +217,8 @@ function _buildDesertTemple(x, y, z, world) {
   // Glowstone floor accent
   world.setBlock(x + 5, y, z + 5, 28);
 
-  // Mob Spawner (loot marker)
-  world.setBlock(x + 5, y + 1, z + 5, 60);
+  // Loot chest (replaces spawner marker)
+  _placeChest(world, x + 5, y + 1, z + 5, 'temple');
 
   // Entrance tunnel
   fillBox(world, x + 5, y + 1, z, x + 5, y + 3, z + 1, 0);
@@ -229,4 +276,7 @@ function _buildPortalRoom(x, y, z, world) {
 
   // Shrine Block as quest marker
   world.setBlock(x + 3, y + 1, z + 1, 59);
+
+  // Loot chest near shrine
+  _placeChest(world, x + 1, y + 1, z + 1, 'portal');
 }

@@ -8,6 +8,7 @@ import * as THREE from 'three';
 
 const TILE = 16;
 const TILES_PER_ROW = 16;
+const ATLAS_ROWS = 20;
 
 let _mobAtlasCanvas = null;
 let _mobAtlasTexture = null;
@@ -34,6 +35,10 @@ const MOB_ATLAS_ROWS = {
   necromancer:  15,
   crystal_golem:16,
   void_wyrm:    17,
+  cave_spider:  18,
+  corrupted_champion: 19,
+  villager:     5,  // reuses cow row as fallback
+  fish:         4,  // reuses enderman row as fallback
 };
 
 function px(ctx, x, y, color) {
@@ -429,13 +434,95 @@ function drawWitchFaces(ctx, row) {
   drawFace(ctx, 5, row, (c) => rect(c, 0, 0, 16, 16, '#3a1a3a'));
 }
 
+function drawCaveSpiderFaces(ctx, row) {
+  drawFace(ctx, 0, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#2a2a3a');
+    // 8 eyes - orange-tinted for cave variant
+    const eyeColor = '#ff4400';
+    const eyePositions = [[3,4],[5,3],[8,3],[10,4],[4,6],[6,5],[9,5],[11,6]];
+    for (const [ex, ey] of eyePositions) {
+      px(c, ex, ey, eyeColor);
+      px(c, ex+1, ey, '#cc3300');
+    }
+    // Fangs
+    rect(c, 6, 11, 1, 3, '#88aa88');
+    rect(c, 9, 11, 1, 3, '#88aa88');
+  });
+  drawFace(ctx, 1, row, (c) => rect(c, 0, 0, 16, 16, '#1a1a2a'));
+  drawFace(ctx, 2, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#2a2a3a');
+    px(c, 2, 4, '#ff4400');
+    px(c, 2, 6, '#ff4400');
+  });
+  drawFace(ctx, 3, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#2a2a3a');
+    px(c, 13, 4, '#ff4400');
+    px(c, 13, 6, '#ff4400');
+  });
+  drawFace(ctx, 4, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#1a1a2a');
+    rect(c, 3, 3, 10, 10, '#15152a');
+  });
+  drawFace(ctx, 5, row, (c) => rect(c, 0, 0, 16, 16, '#0e0e1a'));
+}
+
+function drawCorruptedChampionFaces(ctx, row) {
+  drawFace(ctx, 0, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#3a1a3a');
+    // Corrupted helm
+    rect(c, 1, 0, 14, 4, '#2a0a2a');
+    rect(c, 3, 1, 10, 2, '#4a2a4a');
+    // Glowing purple eyes
+    rect(c, 4, 6, 2, 2, '#cc00ff');
+    rect(c, 10, 6, 2, 2, '#cc00ff');
+    px(c, 4, 6, '#ff66ff');
+    px(c, 10, 6, '#ff66ff');
+    // Dark visor
+    rect(c, 3, 5, 10, 1, '#1a0a1a');
+    rect(c, 3, 8, 10, 1, '#1a0a1a');
+    // Mouth
+    rect(c, 6, 11, 4, 2, '#0a0a0a');
+  });
+  drawFace(ctx, 1, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#3a1a3a');
+    rect(c, 1, 0, 14, 4, '#2a0a2a');
+    // Corruption veins
+    for (let y = 5; y < 15; y += 2) {
+      px(c, 4 + (y % 3), y, '#6600aa');
+      px(c, 10 - (y % 3), y + 1, '#5500aa');
+    }
+  });
+  drawFace(ctx, 2, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#3a1a3a');
+    rect(c, 1, 0, 3, 4, '#2a0a2a');
+    px(c, 3, 6, '#cc00ff');
+    // Corruption veins
+    px(c, 5, 10, '#6600aa');
+    px(c, 4, 12, '#5500aa');
+  });
+  drawFace(ctx, 3, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#3a1a3a');
+    rect(c, 12, 0, 3, 4, '#2a0a2a');
+    px(c, 12, 6, '#cc00ff');
+    px(c, 10, 10, '#6600aa');
+    px(c, 11, 12, '#5500aa');
+  });
+  drawFace(ctx, 4, row, (c) => {
+    rect(c, 0, 0, 16, 16, '#4a2a4a');
+    rect(c, 2, 2, 12, 12, '#3a1a3a');
+    // Corruption sigil
+    px(c, 7, 7, '#cc00ff');
+    px(c, 8, 8, '#cc00ff');
+  });
+  drawFace(ctx, 5, row, (c) => rect(c, 0, 0, 16, 16, '#1a0a1a'));
+}
+
 // ─── Atlas Generation ──────────────────────────────────────────
 
 export function createMobTextureAtlas() {
-  const rows = 18;
   const canvas = document.createElement('canvas');
   canvas.width = TILES_PER_ROW * TILE;
-  canvas.height = rows * TILE;
+  canvas.height = ATLAS_ROWS * TILE;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -454,9 +541,11 @@ export function createMobTextureAtlas() {
   drawSlimeFaces(ctx, 12);
   drawGenericFaces(ctx, 13, '#8B6914'); // Mimic
   drawGenericFaces(ctx, 14, '#8a6a4a', '#ffaacc'); // Harpy
-  drawGenericFaces(ctx, 15, '#2a1a2a', '#ff3333'); // Necromancer
+  drawNecromancerFaces(ctx, 15);
   drawCrystalGolemFaces(ctx, 16);
   drawVoidWyrmFaces(ctx, 17);
+  drawCaveSpiderFaces(ctx, 18);
+  drawCorruptedChampionFaces(ctx, 19);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
@@ -478,9 +567,9 @@ export function getMobFaceUV(mobType, faceIdx) {
   const row = MOB_ATLAS_ROWS[mobType] ?? 0;
   const col = faceIdx;
   const u0 = col / TILES_PER_ROW;
-  const v0 = 1 - (row + 1) / 18;
+  const v0 = 1 - (row + 1) / ATLAS_ROWS;
   const u1 = (col + 1) / TILES_PER_ROW;
-  const v1 = 1 - row / 18;
+  const v1 = 1 - row / ATLAS_ROWS;
   return { u0, v0, u1, v1 };
 }
 

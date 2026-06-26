@@ -118,10 +118,10 @@ export class HUD {
       slotEl.className = `hotbar-slot${selected ? ' selected' : ''}`;
 
       if (item) {
-        // Prefer generated texture, fall back to atlas icon
-        const genUrl = _loadGenTex(item.id);
+        // Prefer atlas icon (transparent), fall back to generated texture
         const atlasUrl = getItemIcon(item.id);
-        const iconUrl = genUrl || atlasUrl;
+        const genUrl = _loadGenTex(item.id);
+        const iconUrl = atlasUrl || genUrl;
         if (iconUrl) {
           const img = document.createElement('img');
           img.src = iconUrl;
